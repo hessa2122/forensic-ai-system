@@ -77,3 +77,8 @@ test_api.py
 *.tmp
 
 forensic_django/django_app/datasets/
+
+.env
+db.sqlite3
+media/
+*.pth
