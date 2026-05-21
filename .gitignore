@@ -1,0 +1,79 @@
+# ── Virtual Environment ──────────────────────────────────────────────
+venv_forensic/
+venv/
+env/
+.venv/
+
+# ── Python ───────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Django ───────────────────────────────────────────────────────────
+*.log
+local_settings.py
+staticfiles/
+db.sqlite3
+
+# ── Environment variables — NEVER commit passwords ───────────────────
+.env
+.env.local
+.env.production
+
+# ── Media uploads — too large and sensitive for git ──────────────────
+forensic_django/django_app/media/uploads/
+forensic_django/django_app/media/results/annotated/
+forensic_django/django_app/media/results/detections/
+
+# Keep .gitkeep files so folders exist after clone
+!forensic_django/django_app/media/**/.gitkeep
+
+# ── 3D scene outputs — generated at runtime ──────────────────────────
+forensic_django/django_app/media/scenes/pointclouds/
+forensic_django/django_app/media/scenes/meshes/
+
+# ── YOLO training runs — very large ──────────────────────────────────
+runs/
+*.cache
+
+# ── Dataset images — too large for git (use Git LFS or share separately)
+object-detection/train/images/
+object-detection/valid/images/
+object-detection/test/images/
+forensic_django/django_app/evidence/dataset/train/images/
+forensic_django/django_app/evidence/dataset/valid/images/
+
+# ── Keep model weights — students need these ─────────────────────────
+# forensic_best.pt is ~50MB — fine for GitHub (under 100MB limit)
+# Do NOT ignore these:
+# !forensic_django/django_app/evidence/weights/forensic_best.pt
+# !forensic_django/django_app/evidence/weights/yolov8m.pt
+
+# ── OS files ─────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── VS Code ──────────────────────────────────────────────────────────
+.vscode/settings.json
+.vscode/launch.json
+
+# ── Jupyter ──────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Temp and test files ───────────────────────────────────────────────
+test_detection.py
+test_depth.py
+test_yolo.py
+test_full_pipeline.py
+test_api.py
+*.tmp
+
+forensic_django/django_app/datasets/

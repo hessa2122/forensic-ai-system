@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ForensicAI — Crime Scene Analysis System</title>
+{% load static %}
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/PLYLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#1c2128;
+  --border:#21262d;--border2:#30363d;
+  --text:#e6edf3;--muted:#8b949e;--muted2:#6e7681;
+  --accent:#3b82f6;--green:#22c55e;--amber:#f59e0b;
+  --red:#ef4444;--purple:#8b5cf6;--cyan:#06b6d4;
+  --mono:'JetBrains Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif;min-height:100vh;display:flex;flex-direction:column}
+::selection{background:rgba(59,130,246,.3)}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* NAV */
+nav{display:flex;align-items:center;justify-content:space-between;padding:0 1.5rem;height:52px;background:rgba(22,27,34,.95);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:200;backdrop-filter:blur(12px)}
+.logo{display:flex;align-items:center;gap:10px;font-size:1rem;font-weight:700;letter-spacing:-.02em}
+.logo-icon{width:28px;height:28px;background:linear-gradient(135deg,#ef4444,#8b5cf6);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.nav-badge{background:#1c0606;color:#f87171;font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;border:1px solid #7f1d1d;font-family:var(--mono)}
+.nav-links{display:flex;gap:2px}
+.nav-link{padding:5px 12px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;color:var(--muted);transition:all .15s}
+.nav-link:hover,.nav-link.active{background:var(--border);color:var(--text)}
+.nav-right{display:flex;align-items:center;gap:.75rem}
+.nav-status{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--green);font-family:var(--mono)}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* LAYOUT */
+.app{display:flex;flex:1;overflow:hidden;height:calc(100vh - 52px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--border);padding:1rem;overflow-y:auto;flex-shrink:0}
+.main{flex:1;overflow-y:auto;padding:1.5rem}
+.page-section{display:none}.page-section.active{display:block}
+
+/* SIDEBAR */
+.sidebar-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted2);margin:1rem 0 .4rem .5rem}
+.sidebar-item{display:flex;align-items:center;gap:8px;padding:.5rem .75rem;border-radius:7px;cursor:pointer;font-size:13px;font-weight:500;color:var(--muted);transition:all .15s;margin-bottom:2px}
+.sidebar-item:hover{background:var(--border);color:var(--text)}
+.sidebar-item.active{background:rgba(59,130,246,.12);color:var(--accent);border:1px solid rgba(59,130,246,.2)}
+.sidebar-item i{font-size:15px;width:18px;text-align:center}
+.sidebar-count{margin-left:auto;background:var(--border2);color:var(--muted);font-size:10px;padding:1px 6px;border-radius:10px;font-family:var(--mono)}
+
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.25rem;transition:border-color .2s}
+.card:hover{border-color:var(--border2)}
+.card-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:1rem;display:flex;align-items:center;gap:7px}
+
+/* STAT CARDS */
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.1rem;position:relative;overflow:hidden;cursor:default}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:2px 2px 0 0}
+.s-blue::before{background:var(--accent)}.s-red::before{background:var(--red)}
+.s-green::before{background:var(--green)}.s-purple::before{background:var(--purple)}
+.s-amber::before{background:var(--amber)}.s-cyan::before{background:var(--cyan)}
+.stat-label{font-size:11px;color:var(--muted);font-weight:500;margin-bottom:.4rem}
+.stat-value{font-size:1.9rem;font-weight:700;font-family:var(--mono);line-height:1}
+.stat-sub{font-size:11px;color:var(--muted);margin-top:.3rem}
+
+/* SECTION HEADER */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem}
+.section-title{font-size:1.2rem;font-weight:700;letter-spacing:-.02em}
+.section-sub{font-size:13px;color:var(--muted);margin-top:.2rem}
+
+/* FORM */
+.form-group{margin-bottom:1rem}
+label{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:.35rem;text-transform:uppercase;letter-spacing:.05em}
+input,textarea,select{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:.6rem .85rem;color:var(--text);font-size:13px;font-family:'Space Grotesk',sans-serif;transition:border-color .15s;outline:none}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,130,246,.1)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem}
+
+/* UPLOAD ZONE */
+.upload-zone{border:2px dashed var(--border2);border-radius:10px;padding:2rem;text-align:center;cursor:pointer;transition:all .2s;position:relative;background:rgba(59,130,246,.02)}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:rgba(59,130,246,.06)}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+#preview-img{width:100%;max-height:200px;object-fit:cover;border-radius:8px;border:1px solid var(--border);display:none;margin-top:.75rem}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:.65rem 1.25rem;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s;font-family:'Space Grotesk',sans-serif}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:#2563eb;transform:translateY(-1px)}
+.btn-primary:disabled{background:#1e3a5f;color:var(--muted);cursor:not-allowed;transform:none}
+.btn-danger{background:transparent;color:var(--red);border:1px solid var(--red);padding:.35rem .75rem;font-size:12px}
+.btn-danger:hover{background:rgba(239,68,68,.1)}
+.btn-ghost{background:transparent;border:1px solid var(--border2);color:var(--muted)}
+.btn-ghost:hover{border-color:var(--border);color:var(--text);background:var(--border)}
+.btn-green{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.btn-green:hover{background:rgba(34,197,94,.25)}
+.btn-full{width:100%;justify-content:center}
+
+/* RISK BADGES */
+.risk-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em}
+.risk-none    {background:rgba(107,114,128,.12);color:#9ca3af;  border:1px solid rgba(107,114,128,.25)}
+.risk-low     {background:rgba(34,197,94,.12); color:var(--green); border:1px solid rgba(34,197,94,.25)}
+.risk-moderate{background:rgba(245,158,11,.12);color:var(--amber);border:1px solid rgba(245,158,11,.25)}
+.risk-high    {background:rgba(239,68,68,.12); color:var(--red);   border:1px solid rgba(239,68,68,.25)}
+.risk-critical{background:rgba(139,92,246,.12);color:var(--purple);border:1px solid rgba(139,92,246,.25)}
+.risk-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+
+/* TABLE */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:.65rem 1rem;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border)}
+td{padding:.65rem 1rem;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.thumb{width:34px;height:34px;border-radius:6px;object-fit:cover;border:1px solid var(--border)}
+
+/* PROGRESS */
+.progress-bar{height:7px;border-radius:4px;background:var(--border);overflow:hidden}
+.progress-fill{height:100%;border-radius:4px;transition:width .8s cubic-bezier(.4,0,.2,1)}
+
+/* LOADER */
+.loader{display:none;flex-direction:column;align-items:center;justify-content:center;gap:.75rem;padding:2rem}
+.spinner{width:40px;height:40px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loader-text{font-size:13px;color:var(--muted);font-family:var(--mono)}
+
+/* DETECTION RESULTS */
+.detection-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.85rem;margin-bottom:.6rem;display:flex;align-items:center;gap:.75rem}
+.detection-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.detection-info{flex:1}
+.detection-name{font-size:13px;font-weight:600;margin-bottom:.2rem}
+.detection-conf{font-size:11px;color:var(--muted);font-family:var(--mono)}
+
+/* 3D VIEWER */
+#threejs-container{width:100%;height:400px;background:#050a0f;border-radius:10px;border:1px solid var(--border);position:relative;overflow:hidden}
+#threejs-canvas{width:100%;height:100%}
+.viewer-controls{position:absolute;bottom:.75rem;left:50%;transform:translateX(-50%);display:flex;gap:.5rem;background:rgba(0,0,0,.6);padding:.4rem .6rem;border-radius:20px;backdrop-filter:blur(8px)}
+.viewer-btn{background:rgba(255,255,255,.1);border:none;color:#fff;padding:.3rem .7rem;border-radius:12px;font-size:11px;cursor:pointer;transition:background .15s}
+.viewer-btn:hover{background:rgba(255,255,255,.2)}
+.viewer-label{position:absolute;top:.75rem;left:.75rem;font-size:11px;color:rgba(255,255,255,.6);font-family:var(--mono);background:rgba(0,0,0,.5);padding:3px 8px;border-radius:6px}
+
+/* TOAST */
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;padding:.85rem 1.25rem;border-radius:9px;font-size:13px;font-weight:500;z-index:999;transform:translateY(80px);opacity:0;transition:all .3s;max-width:320px}
+.toast.show{transform:translateY(0);opacity:1}
+.toast-success{background:#052e16;color:#4ade80;border:1px solid #166534}
+.toast-error  {background:#1c0606;color:#f87171;border:1px solid #991b1b}
+.toast-info   {background:#0c1a2e;color:#60a5fa;border:1px solid #1d4ed8}
+
+/* GRID */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem}
+
+/* EMPTY STATE */
+.empty{text-align:center;padding:3rem;color:var(--muted)}
+.empty-icon{font-size:2.5rem;margin-bottom:.75rem}
+.empty-title{font-size:15px;font-weight:600;margin-bottom:.3rem;color:var(--text)}
+.empty-sub{font-size:13px}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">
+    <div class="logo-icon">🔍</div>
+    ForensicAI
+    <span class="nav-badge">RESTRICTED</span>
+  </div>
+  <div class="nav-links">
+    <div class="nav-link active" onclick="showPage('dashboard')">Dashboard</div>
+    <div class="nav-link" onclick="showPage('cases')">Cases</div>
+    <div class="nav-link" onclick="showPage('analyze')">Analyze</div>
+    <div class="nav-link" onclick="showPage('reconstruct')">3D Scene</div>
+  </div>
+  <div class="nav-right">
+    <div class="nav-status"><span class="status-dot"></span>System Online</div>
+  </div>
+</nav>
+
+<div class="app">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-label">Navigation</div>
+  <div class="sidebar-item active" onclick="showPage('dashboard')">📊 Dashboard</div>
+  <div class="sidebar-item" onclick="showPage('cases')">📁 All Cases</div>
+  <div class="sidebar-item" onclick="showPage('analyze')">🔍 Analyze Evidence</div>
+  <div class="sidebar-item" onclick="showPage('reconstruct')">🧊 3D Reconstruction</div>
+
+  <div class="sidebar-label" style="margin-top:1.5rem">Quick Actions</div>
+  <div class="sidebar-item" onclick="showPage('cases');openNewCase()">➕ New Case</div>
+  <div class="sidebar-item" onclick="showPage('analyze')">📤 Upload Evidence</div>
+
+  <div class="sidebar-label" style="margin-top:1.5rem">Detection Model</div>
+  <div style="padding:.5rem .75rem;font-size:12px;color:var(--muted)">
+    <div style="margin-bottom:.3rem">🟢 forensic_best.pt</div>
+    <div style="font-family:var(--mono);font-size:11px">Classes: 6</div>
+    <div style="font-family:var(--mono);font-size:10px;margin-top:.2rem;color:var(--muted2)">
+      Grenade · Gun · Knife<br>Pistol · Handgun · Rifle
+    </div>
+  </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+
+  <!-- ── DASHBOARD ─────────────────────────────────────────── -->
+  <div id="page-dashboard" class="page-section active">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Forensic Command Center</div>
+        <div class="section-sub">Real-time evidence analysis and case management</div>
+      </div>
+      <button class="btn btn-ghost" onclick="loadDashboard()">↻ Refresh</button>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card s-blue"><div class="stat-label">Total Cases</div><div class="stat-value" id="stat-cases">—</div></div>
+      <div class="stat-card s-amber"><div class="stat-label">Open Cases</div><div class="stat-value" id="stat-open">—</div></div>
+      <div class="stat-card s-red"><div class="stat-label">Weapons Detected</div><div class="stat-value" id="stat-weapons">—</div></div>
+      <div class="stat-card s-green"><div class="stat-label">Evidence Processed</div><div class="stat-value" id="stat-evidence">—</div></div>
+      <div class="stat-card s-purple"><div class="stat-label">3D Reconstructions</div><div class="stat-value" id="stat-recon">—</div></div>
+      <div class="stat-card s-cyan"><div class="stat-label">Critical Cases</div><div class="stat-value" id="stat-critical">—</div></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">📊 Evidence Risk Distribution</div>
+        <canvas id="risk-chart" height="180"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-title">📁 Recent Cases</div>
+        <div id="recent-cases-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CASES ──────────────────────────────────────────────── -->
+  <div id="page-cases" class="page-section">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Case Management</div>
+        <div class="section-sub">All forensic investigation cases</div>
+      </div>
+      <button class="btn btn-primary" onclick="openNewCase()">+ New Case</button>
+    </div>
+
+    <!-- New case form -->
+    <div id="new-case-form" class="card" style="margin-bottom:1.25rem;display:none">
+      <div class="card-title">📁 Create New Case</div>
+      <div class="form-row">
+        <div class="form-group"><label>Case Title</label><input type="text" id="case-title" placeholder="e.g. Homicide Investigation"/></div>
+        <div class="form-group"><label>Case Number</label><input type="text" id="case-number" placeholder="e.g. CASE-2026-001"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Location</label><input type="text" id="case-location" placeholder="Crime scene address"/></div>
+        <div class="form-group"><label>Incident Date</label><input type="date" id="case-date"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Priority</label>
+          <select id="case-priority">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="case-status">
+            <option value="open" selected>Open</option>
+            <option value="active">Active Investigation</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group"><label>Description</label><textarea id="case-desc" rows="2" placeholder="Case summary..."></textarea></div>
+      <div style="display:flex;gap:.75rem">
+        <button class="btn btn-primary" onclick="createCase()">Create Case</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('new-case-form').style.display='none'">Cancel</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div id="cases-loader" class="loader" style="display:flex"><div class="spinner"></div></div>
+      <div id="cases-empty" class="empty" style="display:none">
+        <div class="empty-icon">📁</div>
+        <div class="empty-title">No cases yet</div>
+        <div class="empty-sub">Create your first forensic case above.</div>
+      </div>
+      <div id="cases-table-wrap" style="display:none">
+        <table>
+          <thead><tr><th>Case #</th><th>Title</th><th>Location</th><th>Priority</th><th>Status</th><th>Evidence</th><th>Action</th></tr></thead>
+          <tbody id="cases-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ANALYZE ────────────────────────────────────────────── -->
+  <div id="page-analyze" class="page-section">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Evidence Analysis</div>
+        <div class="section-sub">Upload crime scene images for AI weapon detection</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- LEFT: Upload form -->
+      <div>
+        <div class="card" style="margin-bottom:1.25rem">
+          <div class="card-title">📤 Upload Evidence Image</div>
+          <div class="upload-zone" id="upload-zone">
+            <input type="file" id="image-input" accept="image/*" onchange="handleImageSelect(this)"/>
+            <div style="font-size:2rem;margin-bottom:.5rem">🔍</div>
+            <div style="font-size:14px;font-weight:600;margin-bottom:.25rem">Drop crime scene image here</div>
+            <div style="font-size:12px;color:var(--muted)">PNG, JPG — max 50MB</div>
+          </div>
+          <img id="preview-img" alt="Preview"/>
+          <div id="change-btn" style="display:none;margin-top:.5rem">
+            <button onclick="clearImage()" style="background:transparent;border:1px solid var(--border2);color:var(--muted);padding:.35rem .9rem;border-radius:6px;font-size:12px;cursor:pointer">✕ Clear image</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">📋 Evidence Details</div>
+          <div class="form-group">
+            <label>Select Case</label>
+            <select id="evidence-case-id">
+              <option value="">— Select a case —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Notes</label>
+            <textarea id="evidence-notes" rows="2" placeholder="Evidence description, location found..."></textarea>
+          </div>
+          <button class="btn btn-primary btn-full" id="analyze-btn" onclick="analyzeEvidence()">
+            🔍 Run YOLO Detection
+          </button>
+          <div class="loader" id="analyze-loader">
+            <div class="spinner"></div>
+            <div class="loader-text" id="analyze-msg">Running forensic detection...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Results -->
+      <div id="detection-results" style="display:none">
+        <div class="card" style="margin-bottom:1.25rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+            <div style="font-size:15px;font-weight:700">Detection Results</div>
+            <div id="result-risk-badge"></div>
+          </div>
+
+          <div class="grid-3" style="margin-bottom:1.25rem">
+            <div style="text-align:center;padding:.75rem;background:var(--bg);border-radius:8px;border:1px solid var(--border)">
+              <div style="font-size:1.8rem;font-weight:700;font-family:var(--mono)" id="res-total">0</div>
+              <div style="font-size:11px;color:var(--muted)">Objects Found</div>
+            </div>
+            <div style="text-align:center;padding:.75rem;background:var(--bg);border-radius:8px;border:1px solid var(--border)">
+              <div style="font-size:1.5rem;font-weight:700" id="res-weapon">—</div>
+              <div style="font-size:11px;color:var(--muted)">Weapons</div>
+            </div>
+            <div style="text-align:center;padding:.75rem;background:var(--bg);border-radius:8px;border:1px solid var(--border)">
+              <div style="font-size:1.5rem;font-weight:700;text-transform:capitalize" id="res-risk-text">—</div>
+              <div style="font-size:11px;color:var(--muted)">Risk Level</div>
+            </div>
+          </div>
+
+          <!-- Annotated image -->
+          <div style="margin-bottom:1rem">
+            <div class="card-title">Annotated Image</div>
+            <img id="annotated-img" style="width:100%;border-radius:8px;border:1px solid var(--border);display:none" alt="Annotated"/>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:1.25rem">
+          <div class="card-title">🔫 Detected Weapons</div>
+          <div id="detections-list"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">🧊 3D Reconstruction</div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:.75rem">Generate a 3D point cloud of this crime scene</div>
+          <button class="btn btn-green btn-full" id="reconstruct-btn" onclick="runReconstruction()" style="display:none">
+            🧊 Build 3D Scene
+          </button>
+        </div>
+      </div>
+
+      <!-- Empty state for results -->
+      <div id="detection-empty" class="card">
+        <div class="empty">
+          <div class="empty-icon">🔍</div>
+          <div class="empty-title">No analysis yet</div>
+          <div class="empty-sub">Upload an image and select a case to run YOLO detection.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 3D RECONSTRUCT ─────────────────────────────────────── -->
+  <div id="page-reconstruct" class="page-section">
+    <div class="section-header">
+      <div>
+        <div class="section-title">3D Crime Scene Viewer</div>
+        <div class="section-sub">Immersive point cloud reconstruction of forensic scenes</div>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:1.25rem">
+      <div class="card">
+        <div class="card-title">🧊 Load Scene</div>
+        <div class="form-group">
+          <label>Select Case</label>
+          <select id="recon-case-id" onchange="loadReconstructions()">
+            <option value="">— Select a case —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Available Scenes</label>
+          <select id="recon-scene-select">
+            <option value="">— Select a scene —</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="loadSelectedScene()">Load 3D Scene</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">📊 Scene Info</div>
+        <div id="scene-info">
+          <div class="empty">
+            <div class="empty-icon">🧊</div>
+            <div class="empty-title">No scene loaded</div>
+            <div class="empty-sub">Select a reconstruction to view scene details.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Three.js 3D viewer -->
+    <div class="card">
+      <div class="card-title">🎮 3D Scene Viewer — drag to rotate · scroll to zoom</div>
+      <div id="threejs-container">
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px" id="viewer-placeholder">
+          <div style="text-align:center">
+            <div style="font-size:2rem;margin-bottom:.5rem">🧊</div>
+            <div>Load a 3D scene to view it here</div>
+          </div>
+        </div>
+        <div class="viewer-label" id="viewer-label" style="display:none">POINT CLOUD VIEW</div>
+        <canvas id="threejs-canvas" style="display:none"></canvas>
+        <div class="viewer-controls" style="display:none" id="viewer-controls">
+          <button class="viewer-btn" onclick="resetCamera()">⟳ Reset</button>
+          <button class="viewer-btn" onclick="toggleWireframe()">◻ Wireframe</button>
+          <button class="viewer-btn" onclick="togglePoints()">● Points</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+</div><!-- /app -->
+
+<div id="toast" class="toast"></div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────
+let selectedFile    = null;
+let currentEvidence = null;
+let threeScene      = null;
+let threeRenderer   = null;
+let threeCamera     = null;
+let threeControls   = null;
+let riskChart       = null;
+
+// ─── Navigation ───────────────────────────────────────────────
+function showPage(page) {
+  document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-link, .sidebar-item').forEach(l => l.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelectorAll(`[onclick="showPage('${page}')"]`)
+          .forEach(el => el.classList.add('active'));
+
+  if (page === 'dashboard')   loadDashboard();
+  if (page === 'cases')       loadCases();
+  if (page === 'analyze')     loadCasesDropdown('evidence-case-id');
+  if (page === 'reconstruct') {
+    loadCasesDropdown('recon-case-id');
+    initThreeJS();
+  }
+}
+
+// ─── Dashboard ────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const r    = await fetch('/api/stats/');
+    const data = await r.json();
+
+    document.getElementById('stat-cases').textContent    = data.total_cases    ?? 0;
+    document.getElementById('stat-open').textContent     = data.open_cases     ?? 0;
+    document.getElementById('stat-weapons').textContent  = data.weapons_detected?? 0;
+    document.getElementById('stat-evidence').textContent = data.total_evidence  ?? 0;
+    document.getElementById('stat-recon').textContent    = data.reconstructions ?? 0;
+    document.getElementById('stat-critical').textContent = data.critical_cases  ?? 0;
+
+    // Risk doughnut chart
+    const rd = data.risk_distribution || {};
+    if (riskChart) riskChart.destroy();
+    const ctx = document.getElementById('risk-chart').getContext('2d');
+    riskChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['None','Low','Moderate','High','Critical'],
+        datasets: [{
+          data: [rd.none||0, rd.low||0, rd.moderate||0, rd.high||0, rd.critical||0],
+          backgroundColor: ['rgba(107,114,128,.5)','rgba(34,197,94,.6)','rgba(245,158,11,.6)','rgba(239,68,68,.6)','rgba(139,92,246,.6)'],
+          borderColor:     ['#6b7280','#22c55e','#f59e0b','#ef4444','#8b5cf6'],
+          borderWidth: 2,
+        }]
+      },
+      options: {
+        cutout:'65%',
+        plugins:{ legend:{ labels:{ color:'#8b949e', font:{size:12} } } }
+      }
+    });
+
+    // Recent cases
+    const casesR = await fetch('/api/cases/');
+    const cases  = await casesR.json();
+    const recent = cases.slice(0, 5);
+    document.getElementById('recent-cases-list').innerHTML = recent.length
+      ? recent.map(c => `
+          <div style="display:flex;align-items:center;gap:.75rem;padding:.55rem 0;border-bottom:1px solid var(--border)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:500">${c.title}</div>
+              <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">${c.case_number}</div>
+            </div>
+            <span style="color:${c.priority_color};font-size:11px;font-family:var(--mono)">${c.priority.toUpperCase()}</span>
+          </div>`).join('')
+      : '<div class="empty" style="padding:1.5rem"><div class="empty-sub">No cases yet</div></div>';
+
+  } catch(e) { showToast('Failed to load dashboard', 'error'); }
+}
+
+// ─── Cases ────────────────────────────────────────────────────
+function openNewCase() {
+  const f = document.getElementById('new-case-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+async function createCase() {
+  const title  = document.getElementById('case-title').value.trim();
+  const number = document.getElementById('case-number').value.trim();
+  if (!title) { showToast('Case title is required', 'error'); return; }
+
+  try {
+    const r = await fetch('/api/cases/', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken': getCookie('csrftoken')},
+      body: JSON.stringify({
+        title,
+        case_number:   number || `CASE-${Date.now()}`,
+        location:      document.getElementById('case-location').value,
+        incident_date: document.getElementById('case-date').value || null,
+        priority:      document.getElementById('case-priority').value,
+        status:        document.getElementById('case-status').value,
+        description:   document.getElementById('case-desc').value,
+      })
+    });
+    if (!r.ok) throw new Error('Failed to create case');
+    showToast('Case created successfully!', 'success');
+    document.getElementById('new-case-form').style.display = 'none';
+    loadCases();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function loadCases() {
+  document.getElementById('cases-loader').style.display = 'flex';
+  document.getElementById('cases-table-wrap').style.display = 'none';
+  document.getElementById('cases-empty').style.display = 'none';
+
+  try {
+    const r    = await fetch('/api/cases/');
+    const data = await r.json();
+    document.getElementById('cases-loader').style.display = 'none';
+
+    if (!data.length) {
+      document.getElementById('cases-empty').style.display = 'block';
+      return;
+    }
+
+    document.getElementById('cases-tbody').innerHTML = data.map(c => `
+      <tr>
+        <td style="font-family:var(--mono);font-size:12px">${c.case_number}</td>
+        <td style="font-weight:500">${c.title}</td>
+        <td style="color:var(--muted);font-size:12px">${c.location||'—'}</td>
+        <td><span style="color:${c.priority_color};font-size:12px;font-family:var(--mono)">${c.priority.toUpperCase()}</span></td>
+        <td><span style="font-size:12px;color:var(--muted)">${c.status}</span></td>
+        <td style="font-family:var(--mono);font-size:12px">${c.evidence_count}</td>
+        <td>
+          <button class="btn btn-ghost" style="font-size:11px;padding:.3rem .6rem" onclick="selectCaseForAnalysis(${c.id},'${c.title}')">Analyze</button>
+          <button class="btn btn-danger" onclick="deleteCase(${c.id},this)">Delete</button>
+        </td>
+      </tr>`).join('');
+    document.getElementById('cases-table-wrap').style.display = 'block';
+  } catch(e) {
+    document.getElementById('cases-loader').style.display = 'none';
+    showToast('Failed to load cases', 'error');
+  }
+}
+
+async function deleteCase(id, btn) {
+  if (!confirm('Delete this case and all its evidence?')) return;
+  try {
+    await fetch(`/api/cases/${id}/`, { method:'DELETE', headers:{'X-CSRFToken':getCookie('csrftoken')} });
+    btn.closest('tr').remove();
+    showToast('Case deleted', 'success');
+  } catch(e) { showToast('Delete failed', 'error'); }
+}
+
+function selectCaseForAnalysis(id, title) {
+  showPage('analyze');
+  setTimeout(() => {
+    const sel = document.getElementById('evidence-case-id');
+    if ([...sel.options].some(o => o.value == id)) sel.value = id;
+    showToast(`Selected case: ${title}`, 'info');
+  }, 300);
+}
+
+// ─── Cases dropdown ───────────────────────────────────────────
+async function loadCasesDropdown(selectId) {
+  try {
+    const r    = await fetch('/api/cases/');
+    const data = await r.json();
+    const sel  = document.getElementById(selectId);
+    const cur  = sel.value;
+    sel.innerHTML = '<option value="">— Select a case —</option>' +
+      data.map(c => `<option value="${c.id}">${c.case_number} — ${c.title}</option>`).join('');
+    if (cur) sel.value = cur;
+  } catch(e) {}
+}
+
+// ─── Image upload ─────────────────────────────────────────────
+function handleImageSelect(input) {
+  if (input.files && input.files[0]) {
+    selectedFile = input.files[0];
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('preview-img').src = e.target.result;
+      document.getElementById('preview-img').style.display = 'block';
+      document.getElementById('upload-zone').style.display = 'none';
+      document.getElementById('change-btn').style.display = 'block';
+    };
+    reader.readAsDataURL(selectedFile);
+  }
+}
+
+function clearImage() {
+  selectedFile = null;
+  document.getElementById('image-input').value = '';
+  document.getElementById('preview-img').style.display = 'none';
+  document.getElementById('upload-zone').style.display = 'block';
+  document.getElementById('change-btn').style.display = 'none';
+}
+
+// Setup drag & drop
+window.addEventListener('load', () => {
+  const zone = document.getElementById('upload-zone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag');
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) {
+      selectedFile = f;
+      const inp  = document.getElementById('image-input');
+      const dt   = new DataTransfer();
+      dt.items.add(f);
+      inp.files = dt.files;
+      handleImageSelect(inp);
+    }
+  });
+
+  loadDashboard();
+});
+
+// ─── Analyze evidence ─────────────────────────────────────────
+async function analyzeEvidence() {
+  if (!selectedFile) { showToast('Please upload an image first', 'error'); return; }
+  const caseId = document.getElementById('evidence-case-id').value;
+  if (!caseId) { showToast('Please select a case', 'error'); return; }
+
+  document.getElementById('analyze-btn').disabled = true;
+  document.getElementById('analyze-loader').style.display = 'flex';
+  document.getElementById('analyze-msg').textContent = 'Loading YOLO model...';
+  setTimeout(() => document.getElementById('analyze-msg').textContent = 'Detecting weapons...', 1500);
+  setTimeout(() => document.getElementById('analyze-msg').textContent = 'Annotating image...', 3000);
+
+  const fd = new FormData();
+  fd.append('image',   selectedFile);
+  fd.append('case_id', caseId);
+  fd.append('notes',   document.getElementById('evidence-notes').value);
+
+  try {
+    const r    = await fetch('/api/evidence/upload/', { method:'POST', body:fd });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Detection failed');
+
+    currentEvidence = data;
+    showDetectionResults(data);
+    showToast(`Found ${data.total_objects} object(s) — Risk: ${data.overall_risk}`, 'success');
+  } catch(e) {
+    showToast(e.message, 'error');
+  } finally {
+    document.getElementById('analyze-btn').disabled = false;
+    document.getElementById('analyze-loader').style.display = 'none';
+  }
+}
+
+function showDetectionResults(data) {
+  document.getElementById('detection-empty').style.display   = 'none';
+  document.getElementById('detection-results').style.display = 'block';
+
+  document.getElementById('res-total').textContent     = data.total_objects;
+  document.getElementById('res-weapon').textContent    = data.weapons_found ? '⚠️ Yes' : '✅ None';
+  document.getElementById('res-risk-text').textContent = data.overall_risk;
+  document.getElementById('res-risk-text').style.color = data.risk_color;
+
+  document.getElementById('result-risk-badge').innerHTML =
+    `<span class="risk-badge risk-${data.overall_risk}"><span class="risk-dot"></span>${data.overall_risk.toUpperCase()}</span>`;
+
+  if (data.annotated_url) {
+    const img = document.getElementById('annotated-img');
+    img.src   = data.annotated_url;
+    img.style.display = 'block';
+  }
+
+  // Detection cards
+  const icons = { Grenade:'💣', Gun:'🔫', Knife:'🔪', Pistol:'🔫', handgun:'🔫', rifle:'🎯' };
+  document.getElementById('detections-list').innerHTML = data.detections.length
+    ? data.detections.map(d => `
+        <div class="detection-card">
+          <div class="detection-icon" style="background:rgba(239,68,68,.1)">${icons[d.class_name]||'⚠️'}</div>
+          <div class="detection-info">
+            <div class="detection-name">${d.class_name}</div>
+            <div class="detection-conf">Confidence: ${d.confidence_pct}%</div>
+          </div>
+          <span class="risk-badge risk-${d.risk_level}"><span class="risk-dot"></span>${d.risk_level}</span>
+        </div>`).join('')
+    : '<div style="color:var(--muted);font-size:13px;padding:.5rem">No weapons detected in this image.</div>';
+
+  document.getElementById('reconstruct-btn').style.display = 'flex';
+}
+
+// ─── 3D Reconstruction ────────────────────────────────────────
+async function runReconstruction() {
+  if (!currentEvidence) return;
+  showToast('Starting 3D reconstruction...', 'info');
+  document.getElementById('reconstruct-btn').disabled = true;
+  document.getElementById('reconstruct-btn').textContent = '⏳ Reconstructing...';
+
+  try {
+    const r = await fetch('/api/reconstruct/', {
+      method:  'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
+      body:    JSON.stringify({ evidence_id: currentEvidence.id })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Reconstruction failed');
+
+    showToast(`3D scene built — ${data.total_points} points, ${data.num_clusters} clusters`, 'success');
+    showPage('reconstruct');
+    if (data.ply_url) loadPLYIntoViewer(data.ply_url, data);
+  } catch(e) {
+    showToast(e.message, 'error');
+  } finally {
+    document.getElementById('reconstruct-btn').disabled = false;
+    document.getElementById('reconstruct-btn').textContent = '🧊 Build 3D Scene';
+  }
+}
+
+async function loadReconstructions() {
+  const caseId = document.getElementById('recon-case-id').value;
+  if (!caseId) return;
+  try {
+    const r    = await fetch(`/api/reconstructions/?case_id=${caseId}`);
+    const data = await r.json();
+    const sel  = document.getElementById('recon-scene-select');
+    sel.innerHTML = data.length
+      ? '<option value="">— Select a scene —</option>' +
+        data.map(r => `<option value="${r.id}" data-ply="${r.ply_url}" data-points="${r.total_points}" data-clusters="${r.num_clusters}">
+          Scene #${r.id} — ${r.total_points} pts</option>`).join('')
+      : '<option value="">No reconstructions yet</option>';
+  } catch(e) {}
+}
+
+function loadSelectedScene() {
+  const sel    = document.getElementById('recon-scene-select');
+  const option = sel.options[sel.selectedIndex];
+  if (!option || !option.dataset.ply) { showToast('Please select a scene', 'error'); return; }
+
+  const sceneData = {
+    ply_url:      option.dataset.ply,
+    total_points: option.dataset.points,
+    num_clusters: option.dataset.clusters,
+  };
+  loadPLYIntoViewer(option.dataset.ply, sceneData);
+}
+
+// ─── Three.js 3D viewer ───────────────────────────────────────
+function initThreeJS() {
+    if (threeRenderer) return;
+
+    const container = document.getElementById('threejs-container');
+    const w = container.clientWidth  || 800;
+    const h = container.clientHeight || 400;
+
+    // Renderer
+    threeRenderer = new THREE.WebGLRenderer({ antialias: true });
+    threeRenderer.setSize(w, h);
+    threeRenderer.setClearColor(0x050a0f, 1);
+    threeRenderer.setPixelRatio(window.devicePixelRatio);
+
+    // Replace canvas with renderer's canvas
+    const existingCanvas = document.getElementById('threejs-canvas');
+    existingCanvas.style.display = 'none';
+    container.appendChild(threeRenderer.domElement);
+
+    // Scene and camera
+    threeScene  = new THREE.Scene();
+    threeCamera = new THREE.PerspectiveCamera(60, w / h, 0.001, 1000);
+    threeCamera.position.set(0, 0, 3);
+
+    // Controls
+    threeControls = new THREE.OrbitControls(threeCamera, threeRenderer.domElement);
+    threeControls.enableDamping    = true;
+    threeControls.dampingFactor    = 0.05;
+    threeControls.enableZoom       = true;
+    threeControls.autoRotate       = false;
+
+    // Lights
+    threeScene.add(new THREE.AmbientLight(0xffffff, 1.0));
+    threeScene.add(new THREE.DirectionalLight(0xffffff, 0.5));
+
+    // Animate loop
+    function animate() {
+        requestAnimationFrame(animate);
+        threeControls.update();
+        threeRenderer.render(threeScene, threeCamera);
+    }
+    animate();
+
+    // Handle resize
+    window.addEventListener('resize', () => {
+        const w2 = container.clientWidth;
+        const h2 = container.clientHeight;
+        threeCamera.aspect = w2 / h2;
+        threeCamera.updateProjectionMatrix();
+        threeRenderer.setSize(w2, h2);
+    });
+}
+
+function loadPLYIntoViewer(plyUrl, sceneData) {
+    initThreeJS();
+
+    document.getElementById('viewer-placeholder').style.display  = 'none';
+    document.getElementById('viewer-label').style.display        = 'block';
+    document.getElementById('viewer-label').textContent          = 'Loading...';
+    document.getElementById('viewer-controls').style.display     = 'flex';
+
+    // Clear old objects from scene
+    const toRemove = [];
+    threeScene.traverse(obj => {
+        if (obj.type === 'Points' || obj.type === 'Mesh') toRemove.push(obj);
+    });
+    toRemove.forEach(obj => threeScene.remove(obj));
+
+    const loader = new THREE.PLYLoader();
+
+    loader.load(
+        plyUrl,
+
+        // onLoad
+        geometry => {
+            geometry.computeVertexNormals();
+
+            const hasColors = geometry.attributes.color !== undefined;
+            const material  = new THREE.PointsMaterial({
+                size:         0.008,
+                vertexColors: hasColors,
+                color:        hasColors ? undefined : 0x3b82f6,
+                sizeAttenuation: true,
+            });
+
+            const points = new THREE.Points(geometry, material);
+            threeScene.add(points);
+
+            // Auto-fit camera to the loaded geometry
+            const box    = new THREE.Box3().setFromObject(points);
+            const center = new THREE.Vector3();
+            const size   = new THREE.Vector3();
+            box.getCenter(center);
+            box.getSize(size);
+
+            const maxDim  = Math.max(size.x, size.y, size.z);
+            const fov     = threeCamera.fov * (Math.PI / 180);
+            let   camDist = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 2;
+
+            threeCamera.position.set(
+                center.x,
+                center.y,
+                center.z + camDist
+            );
+            threeControls.target.copy(center);
+            threeControls.update();
+
+            document.getElementById('viewer-label').textContent = 'POINT CLOUD — ' +
+                geometry.attributes.position.count.toLocaleString() + ' points';
+
+            showToast('3D scene loaded successfully!', 'success');
+        },
+
+        // onProgress
+        xhr => {
+            if (xhr.total > 0) {
+                const pct = Math.round(xhr.loaded / xhr.total * 100);
+                document.getElementById('viewer-label').textContent = `Loading: ${pct}%`;
+            }
+        },
+
+        // onError
+        err => {
+            console.error('PLY load error:', err);
+            showToast('Failed to load 3D scene — check console', 'error');
+            document.getElementById('viewer-label').textContent = 'Load failed';
+        }
+    );
+
+    // Update scene info panel
+    document.getElementById('scene-info').innerHTML = `
+        <div style="font-size:13px">
+            <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--border)">
+                <span style="color:var(--muted)">Total Points</span>
+                <span style="font-family:var(--mono)">${Number(sceneData.total_points).toLocaleString()}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--border)">
+                <span style="color:var(--muted)">Object Clusters</span>
+                <span style="font-family:var(--mono)">${sceneData.num_clusters}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--border)">
+                <span style="color:var(--muted)">Format</span>
+                <span style="font-family:var(--mono)">.ply point cloud</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:.4rem 0">
+                <span style="color:var(--muted)">Status</span>
+                <span style="color:var(--green);font-family:var(--mono)">Loaded ✓</span>
+            </div>
+        </div>
+        <div style="margin-top:.75rem;font-size:12px;color:var(--muted);line-height:1.6">
+            🖱 Left drag → rotate<br>
+            🖱 Scroll → zoom<br>
+            🖱 Right drag → pan
+        </div>`;
+}
+function resetCamera() {
+  if (threeControls) { threeControls.reset(); }
+}
+
+function toggleWireframe() {
+  threeScene.children.filter(c => c.type === 'Points').forEach(p => {
+    p.material.wireframe = !p.material.wireframe;
+  });
+}
+
+function togglePoints() {
+  threeScene.children.filter(c => c.type === 'Points').forEach(p => {
+    p.visible = !p.visible;
+  });
+}
+
+// ─── Utilities ────────────────────────────────────────────────
+function getCookie(name) {
+  const v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+  return v ? v[2] : '';
+}
+
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = `toast toast-${type} show`;
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+</script>
+</body>
+</html>
