@@ -197,10 +197,10 @@ tr:hover td{background:rgba(255,255,255,.02)}
 
   <div class="sidebar-label" style="margin-top:1.5rem">Detection Model</div>
   <div style="padding:.5rem .75rem;font-size:12px;color:var(--muted)">
-    <div style="margin-bottom:.3rem">🟢 forensic_best.pt</div>
-    <div style="font-family:var(--mono);font-size:11px">Classes: 6</div>
+    <div style="margin-bottom:.3rem">🟢 forensic_best_v2.pt</div>
+    <div style="font-family:var(--mono);font-size:11px">Classes: 8</div>
     <div style="font-family:var(--mono);font-size:10px;margin-top:.2rem;color:var(--muted2)">
-      Grenade · Gun · Knife<br>Pistol · Handgun · Rifle
+      Gun &middot; Knife &middot; Grenade<br>Pistol &middot; Rifle &middot; Blood<br>Fingerprint &middot; Shell Casing
     </div>
   </div>
 </div>
@@ -478,6 +478,11 @@ let threeRenderer   = null;
 let threeCamera     = null;
 let threeControls   = null;
 let riskChart       = null;
+const detectionIcons = {
+  gun:'🔫', pistol:'🔫', rifle:'🔫', knife:'🔪', grenade:'⚠️',
+  blood:'🩸', fingerprint:'☝️', shell_casing:'●', footprint:'👣',
+  rope:'〰️', drugs:'◆', broken_glass:'◇'
+};
 
 // ─── Navigation ───────────────────────────────────────────────
 function showPage(page) {
@@ -511,24 +516,33 @@ async function loadDashboard() {
 
     // Risk doughnut chart
     const rd = data.risk_distribution || {};
-    if (riskChart) riskChart.destroy();
-    const ctx = document.getElementById('risk-chart').getContext('2d');
-    riskChart = new Chart(ctx, {
-      type: 'doughnut',
-      data: {
-        labels: ['None','Low','Moderate','High','Critical'],
-        datasets: [{
-          data: [rd.none||0, rd.low||0, rd.moderate||0, rd.high||0, rd.critical||0],
-          backgroundColor: ['rgba(107,114,128,.5)','rgba(34,197,94,.6)','rgba(245,158,11,.6)','rgba(239,68,68,.6)','rgba(139,92,246,.6)'],
-          borderColor:     ['#6b7280','#22c55e','#f59e0b','#ef4444','#8b5cf6'],
-          borderWidth: 2,
-        }]
-      },
-      options: {
-        cutout:'65%',
-        plugins:{ legend:{ labels:{ color:'#8b949e', font:{size:12} } } }
-      }
-    });
+    if (window.Chart) {
+      if (riskChart) riskChart.destroy();
+      const ctx = document.getElementById('risk-chart').getContext('2d');
+      riskChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['None','Low','Moderate','High','Critical'],
+          datasets: [{
+            data: [rd.none||0, rd.low||0, rd.moderate||0, rd.high||0, rd.critical||0],
+            backgroundColor: ['rgba(107,114,128,.5)','rgba(34,197,94,.6)','rgba(245,158,11,.6)','rgba(239,68,68,.6)','rgba(139,92,246,.6)'],
+            borderColor:     ['#6b7280','#22c55e','#f59e0b','#ef4444','#8b5cf6'],
+            borderWidth: 2,
+          }]
+        },
+        options: {
+          cutout:'65%',
+          plugins:{ legend:{ labels:{ color:'#8b949e', font:{size:12} } } }
+        }
+      });
+    } else {
+      const canvas = document.getElementById('risk-chart');
+      canvas.replaceWith(Object.assign(document.createElement('div'), {
+        id: 'risk-chart',
+        className: 'empty-sub',
+        textContent: `Low: ${rd.none || 0} | Moderate: ${rd.moderate || 0} | High: ${rd.high || 0}`,
+      }));
+    }
 
     // Recent cases
     const casesR = await fetch('/api/cases/');
@@ -604,7 +618,7 @@ async function loadCases() {
         <td><span style="font-size:12px;color:var(--muted)">${c.status}</span></td>
         <td style="font-family:var(--mono);font-size:12px">${c.evidence_count}</td>
         <td>
-          <button class="btn btn-ghost" style="font-size:11px;padding:.3rem .6rem" onclick="selectCaseForAnalysis(${c.id},'${c.title}')">Analyze</button>
+          <button class="btn btn-ghost" style="font-size:11px;padding:.3rem .6rem" data-case-title="${escapeAttr(c.title)}" onclick="selectCaseForAnalysis(${c.id}, this.dataset.caseTitle)">Analyze</button>
           <button class="btn btn-danger" onclick="deleteCase(${c.id},this)">Delete</button>
         </td>
       </tr>`).join('');
@@ -741,12 +755,10 @@ function showDetectionResults(data) {
     img.style.display = 'block';
   }
 
-  // Detection cards
-  const icons = { Grenade:'💣', Gun:'🔫', Knife:'🔪', Pistol:'🔫', handgun:'🔫', rifle:'🎯' };
   document.getElementById('detections-list').innerHTML = data.detections.length
     ? data.detections.map(d => `
         <div class="detection-card">
-          <div class="detection-icon" style="background:rgba(239,68,68,.1)">${icons[d.class_name]||'⚠️'}</div>
+          <div class="detection-icon" style="background:rgba(239,68,68,.1)">${detectionIcons[d.class_name]||'⚠️'}</div>
           <div class="detection-info">
             <div class="detection-name">${d.class_name}</div>
             <div class="detection-conf">Confidence: ${d.confidence_pct}%</div>
@@ -776,7 +788,8 @@ async function runReconstruction() {
 
     showToast(`3D scene built — ${data.total_points} points, ${data.num_clusters} clusters`, 'success');
     showPage('reconstruct');
-    if (data.ply_url) loadPLYIntoViewer(data.ply_url, data);
+    if (data.scene_id || data.id) loadSceneIntoViewer(data.scene_id || data.id, data);
+    else if (data.ply_url) loadPLYIntoViewer(data.ply_url, data);
   } catch(e) {
     showToast(e.message, 'error');
   } finally {
@@ -794,7 +807,7 @@ async function loadReconstructions() {
     const sel  = document.getElementById('recon-scene-select');
     sel.innerHTML = data.length
       ? '<option value="">— Select a scene —</option>' +
-        data.map(r => `<option value="${r.id}" data-ply="${r.ply_url}" data-points="${r.total_points}" data-clusters="${r.num_clusters}">
+        data.map(r => `<option value="${r.id}" data-ply="${escapeAttr(r.ply_url)}" data-points="${r.total_points}" data-clusters="${r.num_clusters}" data-size="${r.ply_size_mb}">
           Scene #${r.id} — ${r.total_points} pts</option>`).join('')
       : '<option value="">No reconstructions yet</option>';
   } catch(e) {}
@@ -806,16 +819,25 @@ function loadSelectedScene() {
   if (!option || !option.dataset.ply) { showToast('Please select a scene', 'error'); return; }
 
   const sceneData = {
+    id:           option.value,
+    scene_id:     option.value,
     ply_url:      option.dataset.ply,
     total_points: option.dataset.points,
     num_clusters: option.dataset.clusters,
+    ply_size_mb:  option.dataset.size,
   };
-  loadPLYIntoViewer(option.dataset.ply, sceneData);
+  loadSceneIntoViewer(option.value, sceneData);
 }
 
 // ─── Three.js 3D viewer ───────────────────────────────────────
 function initThreeJS() {
     if (threeRenderer) return;
+    if (!window.THREE || !THREE.WebGLRenderer || !THREE.OrbitControls) {
+        document.getElementById('viewer-placeholder').innerHTML =
+            '<div style="text-align:center"><div style="font-size:2rem;margin-bottom:.5rem">3D</div><div>3D libraries did not load. Check your internet connection for CDN access.</div></div>';
+        showToast('3D viewer libraries are not loaded', 'error');
+        return;
+    }
 
     const container = document.getElementById('threejs-container');
     const w = container.clientWidth  || 800;
@@ -866,20 +888,110 @@ function initThreeJS() {
     });
 }
 
-function loadPLYIntoViewer(plyUrl, sceneData) {
+async function loadSceneIntoViewer(sceneId, sceneData = {}) {
     initThreeJS();
+    if (!threeScene || !window.THREE) {
+        showToast('3D viewer is not available', 'error');
+        return;
+    }
 
+    setViewerLoading('Checking reconstruction file...');
+
+    try {
+        const r = await fetch(`/api/reconstruction-data/${sceneId}/?max_points=90000`);
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Point-cloud validation failed');
+        renderPointCloudData(data);
+        updateSceneInfo({...sceneData, ...data}, 'Loaded');
+        showToast(`3D scene loaded — ${Number(data.rendered_points).toLocaleString()} rendered points`, 'success');
+    } catch (e) {
+        console.error('Point-cloud data load error:', e);
+        showToast(e.message, 'error');
+        updateSceneInfo({...sceneData, error: e.message}, 'Load failed');
+        if (sceneData.ply_url) {
+            showToast('Trying original PLY viewer as fallback...', 'info');
+            loadPLYIntoViewer(sceneData.ply_url, sceneData);
+        } else {
+            document.getElementById('viewer-label').textContent = 'Load failed';
+        }
+    }
+}
+
+function setViewerLoading(message) {
     document.getElementById('viewer-placeholder').style.display  = 'none';
     document.getElementById('viewer-label').style.display        = 'block';
-    document.getElementById('viewer-label').textContent          = 'Loading...';
+    document.getElementById('viewer-label').textContent          = message;
     document.getElementById('viewer-controls').style.display     = 'flex';
+}
 
-    // Clear old objects from scene
+function clearPointCloudObjects() {
     const toRemove = [];
     threeScene.traverse(obj => {
         if (obj.type === 'Points' || obj.type === 'Mesh') toRemove.push(obj);
     });
-    toRemove.forEach(obj => threeScene.remove(obj));
+    toRemove.forEach(obj => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+        threeScene.remove(obj);
+    });
+}
+
+function fitCameraToObject(object3d) {
+    const box    = new THREE.Box3().setFromObject(object3d);
+    const center = new THREE.Vector3();
+    const size   = new THREE.Vector3();
+    box.getCenter(center);
+    box.getSize(size);
+
+    const maxDim  = Math.max(size.x, size.y, size.z, 0.01);
+    const fov     = threeCamera.fov * (Math.PI / 180);
+    const camDist = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 2.2;
+
+    threeCamera.position.set(center.x, center.y, center.z + camDist);
+    threeCamera.near = Math.max(camDist / 1000, 0.0001);
+    threeCamera.far  = Math.max(camDist * 1000, 10);
+    threeCamera.updateProjectionMatrix();
+    threeControls.target.copy(center);
+    threeControls.update();
+}
+
+function renderPointCloudData(data) {
+    clearPointCloudObjects();
+
+    const geometry = new THREE.BufferGeometry();
+    const flatPoints = new Float32Array(data.points.flat());
+    geometry.setAttribute('position', new THREE.BufferAttribute(flatPoints, 3));
+
+    const hasColors = Array.isArray(data.colors) && data.colors.length === data.points.length;
+    if (hasColors) {
+        geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(data.colors.flat()), 3));
+    }
+
+    const material = new THREE.PointsMaterial({
+        size: Math.max(0.004, Math.min(0.015, 2.4 / Math.sqrt(data.rendered_points || data.points.length))),
+        vertexColors: hasColors,
+        color: hasColors ? undefined : 0x3b82f6,
+        sizeAttenuation: true,
+    });
+
+    const points = new THREE.Points(geometry, material);
+    threeScene.add(points);
+    fitCameraToObject(points);
+
+    document.getElementById('viewer-label').textContent = 'POINT CLOUD — ' +
+        Number(data.rendered_points || data.points.length).toLocaleString() + ' / ' +
+        Number(data.total_points || data.num_points || data.points.length).toLocaleString() + ' points';
+}
+
+function loadPLYIntoViewer(plyUrl, sceneData) {
+    initThreeJS();
+    if (!threeScene || !window.THREE || !THREE.PLYLoader) {
+        showToast('PLY loader is not available', 'error');
+        return;
+    }
+
+    setViewerLoading('Loading original PLY...');
+    clearPointCloudObjects();
 
     const loader = new THREE.PLYLoader();
 
@@ -901,28 +1013,12 @@ function loadPLYIntoViewer(plyUrl, sceneData) {
             const points = new THREE.Points(geometry, material);
             threeScene.add(points);
 
-            // Auto-fit camera to the loaded geometry
-            const box    = new THREE.Box3().setFromObject(points);
-            const center = new THREE.Vector3();
-            const size   = new THREE.Vector3();
-            box.getCenter(center);
-            box.getSize(size);
-
-            const maxDim  = Math.max(size.x, size.y, size.z);
-            const fov     = threeCamera.fov * (Math.PI / 180);
-            let   camDist = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 2;
-
-            threeCamera.position.set(
-                center.x,
-                center.y,
-                center.z + camDist
-            );
-            threeControls.target.copy(center);
-            threeControls.update();
+            fitCameraToObject(points);
 
             document.getElementById('viewer-label').textContent = 'POINT CLOUD — ' +
                 geometry.attributes.position.count.toLocaleString() + ' points';
 
+            updateSceneInfo(sceneData, 'Loaded from PLY fallback');
             showToast('3D scene loaded successfully!', 'success');
         },
 
@@ -937,31 +1033,63 @@ function loadPLYIntoViewer(plyUrl, sceneData) {
         // onError
         err => {
             console.error('PLY load error:', err);
-            showToast('Failed to load 3D scene — check console', 'error');
+            showToast('Failed to load 3D scene. The PLY file could not be parsed or served.', 'error');
             document.getElementById('viewer-label').textContent = 'Load failed';
+            updateSceneInfo({...sceneData, error: 'The browser could not parse the generated PLY file.'}, 'Load failed');
         }
     );
 
-    // Update scene info panel
+    updateSceneInfo(sceneData, 'Loading original PLY');
+}
+
+function formatVector(values) {
+    if (!Array.isArray(values)) return '—';
+    return values.map(v => Number(v).toFixed(4)).join(', ');
+}
+
+function updateSceneInfo(sceneData = {}, status = 'Loaded') {
+    const totalPoints = Number(sceneData.total_points || sceneData.num_points || 0);
+    const renderedPoints = Number(sceneData.rendered_points || totalPoints || 0);
+    const fileSize = Number(sceneData.ply_size_mb || 0);
+    const bounds = sceneData.bounds || {};
+    const statusColor = status.toLowerCase().includes('fail') ? 'var(--red)' : 'var(--green)';
+
     document.getElementById('scene-info').innerHTML = `
         <div style="font-size:13px">
             <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--border)">
                 <span style="color:var(--muted)">Total Points</span>
-                <span style="font-family:var(--mono)">${Number(sceneData.total_points).toLocaleString()}</span>
+                <span style="font-family:var(--mono)">${totalPoints ? totalPoints.toLocaleString() : '—'}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--border)">
+                <span style="color:var(--muted)">Rendered Points</span>
+                <span style="font-family:var(--mono)">${renderedPoints ? renderedPoints.toLocaleString() : '—'}</span>
             </div>
             <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--border)">
                 <span style="color:var(--muted)">Object Clusters</span>
-                <span style="font-family:var(--mono)">${sceneData.num_clusters}</span>
+                <span style="font-family:var(--mono)">${sceneData.num_clusters ?? '—'}</span>
             </div>
             <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--border)">
-                <span style="color:var(--muted)">Format</span>
-                <span style="font-family:var(--mono)">.ply point cloud</span>
+                <span style="color:var(--muted)">File Size</span>
+                <span style="font-family:var(--mono)">${fileSize ? fileSize.toFixed(2) + ' MB' : '—'}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;gap:.75rem;padding:.4rem 0;border-bottom:1px solid var(--border)">
+                <span style="color:var(--muted)">Scene Size XYZ</span>
+                <span style="font-family:var(--mono);text-align:right">${formatVector(bounds.size)}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;gap:.75rem;padding:.4rem 0;border-bottom:1px solid var(--border)">
+                <span style="color:var(--muted)">Center XYZ</span>
+                <span style="font-family:var(--mono);text-align:right">${formatVector(bounds.center)}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--border)">
+                <span style="color:var(--muted)">Colors</span>
+                <span style="font-family:var(--mono)">${sceneData.has_colors === undefined ? '—' : (sceneData.has_colors ? 'RGB' : 'single color')}</span>
             </div>
             <div style="display:flex;justify-content:space-between;padding:.4rem 0">
                 <span style="color:var(--muted)">Status</span>
-                <span style="color:var(--green);font-family:var(--mono)">Loaded ✓</span>
+                <span style="color:${statusColor};font-family:var(--mono)">${status}</span>
             </div>
         </div>
+        ${sceneData.error ? `<div style="margin-top:.75rem;color:var(--red);font-size:12px;line-height:1.5">${escapeHtml(sceneData.error)}</div>` : ''}
         <div style="margin-top:.75rem;font-size:12px;color:var(--muted);line-height:1.6">
             🖱 Left drag → rotate<br>
             🖱 Scroll → zoom<br>
@@ -988,6 +1116,23 @@ function togglePoints() {
 function getCookie(name) {
   const v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
   return v ? v[2] : '';
+}
+
+function escapeAttr(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function showToast(msg, type='success') {

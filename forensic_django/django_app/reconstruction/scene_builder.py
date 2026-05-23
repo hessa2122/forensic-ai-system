@@ -10,12 +10,17 @@ from PIL import Image
 
 # ── Depth Model Setup ─────────────────────────────────────────────────────────
 WEIGHTS_DIR = Path(__file__).parent / 'weights'
+_depth_model = None
 
 def load_depth_model(encoder='vits'):
     """
     Load Depth Anything V2 model.
     encoder options: 'vits' (fast, ~94MB), 'vitb' (better), 'vitl' (best, ~1.3GB)
     """
+    global _depth_model
+    if _depth_model is not None:
+        return _depth_model
+
     import sys
     sys.path.append(str(Path(__file__).parent.parent))
 
@@ -30,12 +35,18 @@ def load_depth_model(encoder='vits'):
 
         model = DepthAnythingV2(**model_configs[encoder])
         weight_path = WEIGHTS_DIR / f'depth_anything_v2_{encoder}.pth'
+        if not weight_path.exists():
+            print(f"Warning: depth model weights not found at {weight_path}, using image-based fallback")
+            _depth_model = None
+            return _depth_model
         model.load_state_dict(torch.load(weight_path, map_location='cpu'))
         model.eval()
-        return model
+        _depth_model = model
+        return _depth_model
     except ImportError:
-        print("Warning: depth_anything_v2 not found, using MiDaS fallback")
-        return load_midas_fallback()
+        print("Warning: depth_anything_v2 not found, using image-based fallback")
+        _depth_model = None
+        return _depth_model
 
 
 def load_midas_fallback():
@@ -45,25 +56,38 @@ def load_midas_fallback():
     return model
 
 
+def estimate_depth_fallback(img_rgb):
+    """Fast local depth approximation so reconstruction works without model downloads."""
+    gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY).astype(np.float32) / 255.0
+    h, w = gray.shape
+    vertical_prior = np.linspace(0.25, 1.0, h, dtype=np.float32)[:, None]
+    edges = cv2.Laplacian(gray, cv2.CV_32F)
+    texture = cv2.GaussianBlur(np.abs(edges), (0, 0), 3)
+    depth = 0.65 * vertical_prior + 0.25 * (1.0 - gray) + 0.10 * texture
+    depth = cv2.GaussianBlur(depth, (0, 0), 2)
+    return (depth - depth.min()) / (depth.max() - depth.min() + 1e-8)
+
+
 def estimate_depth(model, image_path):
     """
     Estimate depth map from image.
     Returns numpy array (H x W) normalized 0-1.
     """
     img = cv2.imread(str(image_path))
+    if img is None:
+        raise ValueError(f"Could not read image: {image_path}")
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     h, w = img.shape[:2]
 
-    try:
+    if model is None:
+        depth = estimate_depth_fallback(img_rgb)
+    else:
+        try:
         # Depth Anything V2
-        depth = model.infer_image(img_rgb)
-    except AttributeError:
-        # MiDaS fallback
-        transform = torch.hub.load("intel-isl/MiDaS", "transforms").small_transform
-        input_batch = transform(img_rgb).unsqueeze(0)
-        with torch.no_grad():
-            depth = model(input_batch).squeeze().numpy()
+            depth = model.infer_image(img_rgb)
+        except AttributeError:
+            depth = estimate_depth_fallback(img_rgb)
 
     # Normalize to 0-1
     depth = (depth - depth.min()) / (depth.max() - depth.min() + 1e-8)

@@ -11,6 +11,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.core.files.storage import default_storage
 from django.conf import settings
 from ultralytics import YOLO
+from cases.models import Case
 
 # ── Load models once at startup ──────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent
@@ -21,7 +22,17 @@ FORENSIC_MODEL_PATH = BASE_DIR / 'weights' / 'forensic_best_v2.pt'
 if not FORENSIC_MODEL_PATH.exists():
     FORENSIC_MODEL_PATH = BASE_DIR / 'weights' / 'forensic_best.pt'
 
-forensic_model = YOLO(str(FORENSIC_MODEL_PATH))
+_forensic_model = None
+
+def get_forensic_model():
+    global _forensic_model
+    if _forensic_model is not None:
+        return _forensic_model
+    if not FORENSIC_MODEL_PATH.exists():
+        raise FileNotFoundError(f"YOLO weights not found: {FORENSIC_MODEL_PATH}")
+    _forensic_model = YOLO(str(FORENSIC_MODEL_PATH))
+    return _forensic_model
+
 
 # Class colors for visualization (BGR format for OpenCV)
 CLASS_COLORS = {
@@ -60,7 +71,9 @@ def analyze_image(image_path):
     }
 
     # ── 1. YOLOv8 Detection ───────────────────────────────────────────────
+    forensic_model = get_forensic_model()
     yolo_results = forensic_model(img, conf=0.25, iou=0.45)
+
 
     for r in yolo_results:
         for box in r.boxes:
@@ -132,10 +145,11 @@ def analyze_image(image_path):
     results_data['summary'] = summary
 
     # ── 6. Save annotated image ───────────────────────────────────────────
-    annotated_path = str(image_path).replace('.jpg', '_analyzed.jpg') \
-                                    .replace('.png', '_analyzed.jpg')
-    cv2.imwrite(annotated_path, img)
-    results_data['annotated_image'] = os.path.basename(annotated_path)
+    image_path = Path(image_path)
+    annotated_path = image_path.with_name(image_path.stem + '_analyzed' + image_path.suffix)
+    cv2.imwrite(str(annotated_path), img)
+    results_data['annotated_image'] = annotated_path.name
+
 
     return results_data
 
@@ -207,50 +221,91 @@ def detect_fingerprints(img):
 # ── Django Views ──────────────────────────────────────────────────────────────
 
 def evidence_list(request):
-    return render(request, 'evidence/list.html')
+    return render(request, 'index.html')
 
 
 @csrf_exempt
 def analyze_evidence(request):
     """Main upload + analyze endpoint."""
     if request.method != 'POST':
-        return render(request, 'evidence/analyze.html')
+        return render(request, 'index.html')
 
     if 'image' not in request.FILES:
         return JsonResponse({'error': 'No image uploaded'}, status=400)
 
     img_file = request.FILES['image']
+    case = None
+    case_id = request.POST.get('case_id')
+    if case_id:
+        case = get_object_or_404(Case, pk=case_id)
+
     upload_dir = Path(settings.MEDIA_ROOT) / 'evidence_uploads'
     upload_dir.mkdir(parents=True, exist_ok=True)
 
-    save_path = upload_dir / img_file.name
+    save_path = upload_dir / default_storage.get_available_name(img_file.name)
     with open(save_path, 'wb+') as f:
         for chunk in img_file.chunks():
             f.write(chunk)
 
     # Run analysis
     analysis = analyze_image(save_path)
+    if 'error' in analysis:
+        return JsonResponse({'error': analysis['error']}, status=400)
 
     # Save to database
     from .models import Evidence
     evidence_obj = Evidence.objects.create(
-        image=f'evidence_uploads/{img_file.name}',
+        case=case,
+        image=f'evidence_uploads/{save_path.name}',
         detections=json.dumps(analysis['detections']),
         threat_level=analysis['threat_level'],
         summary=json.dumps(analysis.get('summary', {})),
+        notes=request.POST.get('notes', ''),
     )
+
+    risk_map = {
+        'LOW': ('low', '#22c55e'),
+        'MEDIUM': ('moderate', '#f59e0b'),
+        'HIGH': ('high', '#ef4444'),
+    }
+    overall_risk, risk_color = risk_map.get(analysis['threat_level'], ('low', '#22c55e'))
+    danger_found = any(d.get('type') == 'weapon' for d in analysis['detections'])
+    frontend_detections = []
+    for detection in analysis['detections']:
+        confidence = float(detection.get('confidence', 0))
+        is_weapon = detection.get('type') == 'weapon'
+        frontend_detections.append({
+            **detection,
+            'class_name': detection.get('class', 'unknown'),
+            'confidence_pct': round(confidence * 100, 1),
+            'risk_level': 'high' if is_weapon else 'moderate' if detection.get('type') == 'trace' else 'low',
+        })
 
     return JsonResponse({
         'id':             evidence_obj.id,
-        'detections':     analysis['detections'],
+        'case_id':        case.id if case else None,
+        'detections':     frontend_detections,
         'threat_level':   analysis['threat_level'],
+        'overall_risk':   overall_risk,
+        'risk_color':     risk_color,
+        'weapons_found':  danger_found,
         'summary':        analysis['summary'],
         'annotated_image': analysis.get('annotated_image'),
+        'annotated_url':  f"{settings.MEDIA_URL}evidence_uploads/{analysis.get('annotated_image')}" if analysis.get('annotated_image') else None,
         'total_found':    len(analysis['detections']),
+        'total_objects':  len(analysis['detections']),
     })
 
 
 def evidence_detail(request, pk):
     from .models import Evidence
     obj = get_object_or_404(Evidence, pk=pk)
-    return render(request, 'evidence/detail.html', {'evidence': obj})
+    return JsonResponse({
+        'id': obj.id,
+        'case_id': obj.case_id,
+        'image': obj.image.url if obj.image else None,
+        'detections': obj.get_detections(),
+        'summary': obj.get_summary(),
+        'threat_level': obj.threat_level,
+        'analyzed_at': obj.analyzed_at.isoformat(),
+    })

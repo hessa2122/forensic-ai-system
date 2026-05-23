@@ -18,6 +18,7 @@ from django.contrib  import admin
 from django.urls     import path, include
 from django.conf     import settings
 from django.conf.urls.static import static
+from django.views.decorators.cache import never_cache
 from django.views.generic    import TemplateView
 
 urlpatterns = [
@@ -25,5 +26,5 @@ urlpatterns = [
     path('api/',    include('cases.urls')),
     path('api/',    include('evidence.urls')),
     path('api/',    include('reconstruction.urls')),
-    path('',        TemplateView.as_view(template_name='index.html'), name='home'),
+    path('',        never_cache(TemplateView.as_view(template_name='index.html')), name='home'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
