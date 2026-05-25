@@ -82,3 +82,13 @@ forensic_django/django_app/datasets/
 db.sqlite3
 media/
 *.pth
+
+venv_forensic/
+__pycache__/
+*.pyc
+db.sqlite3
+.env
+media/
+datasets/
+*.pt
+server.out.log

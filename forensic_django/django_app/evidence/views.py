@@ -51,17 +51,20 @@ CLASS_COLORS = {
 }
 
 DANGER_CLASSES = {'gun', 'pistol', 'rifle', 'grenade', 'knife'}
-TRACE_CLASSES  = {'blood', 'fingerprint', 'shell_casing', 'footprint'}
+TRACE_CLASSES  = {'blood', 'fingerprint', 'shell_casing', 'footprint', 'bomb'}
 
 
-def analyze_image(image_path):
-    """
-    Run full forensic analysis on an image.
-    Returns dict with detections, annotated image path, threat level.
+def analyze_image(image_path, mode: str = "yolo_plus_heuristics"):
+    """Run forensic analysis on an image.
+
+    mode:
+      - "yolo_only": YOLO detections only (skip HSV blood / texture fingerprint heuristics)
+      - "yolo_plus_heuristics": YOLO + heuristics (current default)
     """
     img = cv2.imread(str(image_path))
     if img is None:
         return {'error': 'Could not read image'}
+
 
     results_data = {
         'detections': [],
@@ -79,6 +82,9 @@ def analyze_image(image_path):
         for box in r.boxes:
             cls_id  = int(box.cls[0])
             cls_name = forensic_model.names[cls_id]
+            cls_name_raw = cls_name
+            # Normalize class names so comparisons against DANGER/TRACE sets are consistent
+            cls_name = str(cls_name_raw).lower().strip()
             conf    = float(box.conf[0])
             x1, y1, x2, y2 = map(int, box.xyxy[0])
 
@@ -87,9 +93,13 @@ def analyze_image(image_path):
                 'confidence': round(conf, 3),
                 'bbox':       [x1, y1, x2, y2],
                 'center':     [(x1+x2)//2, (y1+y2)//2],
-                'type':       'weapon'    if cls_name in DANGER_CLASSES
+                'type':       'weapon' if cls_name in DANGER_CLASSES
                               else 'trace' if cls_name in TRACE_CLASSES
                               else 'other',
+                # Keep raw + normalized class for debugging/analysis
+                'class_raw':  str(cls_name_raw),
+                'debug_yolo_class': cls_name_raw,
+                'class_norm': cls_name,
             }
             results_data['detections'].append(detection)
 
@@ -103,33 +113,36 @@ def analyze_image(image_path):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
 
     # ── 2. Blood Detection (color analysis) ──────────────────────────────
-    blood_regions = detect_blood(img)
-    for (bx1, by1, bx2, by2, area) in blood_regions:
-        results_data['detections'].append({
-            'class':      'blood',
-            'confidence': 0.80,
-            'bbox':       [bx1, by1, bx2, by2],
-            'center':     [(bx1+bx2)//2, (by1+by2)//2],
-            'type':       'trace',
-            'area_px':    area,
-        })
-        cv2.rectangle(img, (bx1, by1), (bx2, by2), (50, 50, 200), 2)
-        cv2.putText(img, f"blood ~{area}px", (bx1, by1-5),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (50,50,200), 2)
+    if mode != "yolo_only":
+        blood_regions = detect_blood(img)
+        for (bx1, by1, bx2, by2, area) in blood_regions:
+            results_data['detections'].append({
+                'class':      'blood',
+                'confidence': 0.80,
+                'bbox':       [bx1, by1, bx2, by2],
+                'center':     [(bx1+bx2)//2, (by1+by2)//2],
+                'type':       'trace',
+                'area_px':    area,
+            })
+            cv2.rectangle(img, (bx1, by1), (bx2, by2), (50, 50, 200), 2)
+            cv2.putText(img, f"blood ~{area}px", (bx1, by1-5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (50,50,200), 2)
 
     # ── 3. Fingerprint Detection (texture analysis) ───────────────────────
-    fp_regions = detect_fingerprints(img)
-    for (fx, fy, fw, fh) in fp_regions:
-        results_data['detections'].append({
-            'class':      'fingerprint',
-            'confidence': 0.65,
-            'bbox':       [fx, fy, fx+fw, fy+fh],
-            'center':     [fx+fw//2, fy+fh//2],
-            'type':       'trace',
-        })
-        cv2.rectangle(img, (fx, fy), (fx+fw, fy+fh), (255, 200, 0), 2)
-        cv2.putText(img, "fingerprint", (fx, fy-5),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,200,0), 2)
+    if mode != "yolo_only":
+        fp_regions = detect_fingerprints(img)
+        for (fx, fy, fw, fh) in fp_regions:
+            results_data['detections'].append({
+                'class':      'fingerprint',
+                'confidence': 0.65,
+                'bbox':       [fx, fy, fx+fw, fy+fh],
+                'center':     [fx+fw//2, fy+fh//2],
+                'type':       'trace',
+            })
+            cv2.rectangle(img, (fx, fy), (fx+fw, fy+fh), (255, 200, 0), 2)
+            cv2.putText(img, "fingerprint", (fx, fy-5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,200,0), 2)
+
 
     # ── 4. Threat Level ───────────────────────────────────────────────────
     classes_found = {d['class'] for d in results_data['detections']}
@@ -248,7 +261,9 @@ def analyze_evidence(request):
             f.write(chunk)
 
     # Run analysis
-    analysis = analyze_image(save_path)
+    mode = request.POST.get('mode', 'yolo_plus_heuristics')
+    analysis = analyze_image(save_path, mode=mode)
+
     if 'error' in analysis:
         return JsonResponse({'error': analysis['error']}, status=400)
 
@@ -276,10 +291,14 @@ def analyze_evidence(request):
         is_weapon = detection.get('type') == 'weapon'
         frontend_detections.append({
             **detection,
+            # normalized for consistent UI logic
             'class_name': detection.get('class', 'unknown'),
+            # raw YOLO name (when YOLO-produced); heuristics do not have raw names
+            'class_name_raw': detection.get('class_raw', detection.get('class', 'unknown')),
             'confidence_pct': round(confidence * 100, 1),
             'risk_level': 'high' if is_weapon else 'moderate' if detection.get('type') == 'trace' else 'low',
         })
+
 
     return JsonResponse({
         'id':             evidence_obj.id,
