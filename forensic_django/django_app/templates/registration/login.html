@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ForensicAI — Secure Access</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0d1117;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Courier New', Courier, monospace;
+      padding: 2rem 1rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(59,130,246,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.04) 1px, transparent 1px);
+      background-size: 32px 32px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Scan line effect */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.03) 2px,
+        rgba(0,0,0,0.03) 4px
+      );
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Navbar */
+    .navbar {
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.25rem;
+      background: #161b22;
+      border: 1px solid #21262d;
+      border-radius: 10px;
+      margin-bottom: 2.5rem;
+      position: relative;
+      z-index: 2;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: #3b82f6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      font-weight: 700;
+      color: white;
+      letter-spacing: 0;
+    }
+
+    .brand-name {
+      color: #e6edf3;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 1px;
+    }
+
+    .restricted-badge {
+      background: rgba(239,68,68,0.12);
+      color: #f87171;
+      border: 1px solid rgba(239,68,68,0.28);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      letter-spacing: 1.5px;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .status-text {
+      color: #22c55e;
+      font-size: 12px;
+      letter-spacing: 1px;
+    }
+
+    /* Login card */
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background: #161b22;
+      border: 1px solid #21262d;
+      border-radius: 14px;
+      padding: 2.25rem 2rem;
+      position: relative;
+      z-index: 2;
+    }
+
+    /* Corner brackets */
+    .corner {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-color: #3b82f6;
+      border-style: solid;
+    }
+    .corner-tl { top: 10px; left: 10px; border-width: 2px 0 0 2px; }
+    .corner-tr { top: 10px; right: 10px; border-width: 2px 2px 0 0; }
+    .corner-bl { bottom: 10px; left: 10px; border-width: 0 0 2px 2px; }
+    .corner-br { bottom: 10px; right: 10px; border-width: 0 2px 2px 0; }
+
+    /* Card header */
+    .card-header {
+      text-align: center;
+      margin-bottom: 1.75rem;
+    }
+
+    .card-icon {
+      width: 54px;
+      height: 54px;
+      border-radius: 12px;
+      background: rgba(59,130,246,0.1);
+      border: 1px solid rgba(59,130,246,0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1rem;
+      font-size: 24px;
+    }
+
+    .card-title {
+      color: #e6edf3;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      margin-bottom: 5px;
+    }
+
+    .card-sub {
+      color: #8b949e;
+      font-size: 11px;
+      letter-spacing: 2.5px;
+    }
+
+    /* Divider */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 1.6rem;
+    }
+
+    .divider-line {
+      flex: 1;
+      height: 1px;
+      background: #21262d;
+    }
+
+    .divider-text {
+      color: #3b82f6;
+      font-size: 10px;
+      letter-spacing: 2px;
+      white-space: nowrap;
+    }
+
+    /* Error messages */
+    .errorlist {
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.25);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 1.2rem;
+      list-style: none;
+    }
+
+    .errorlist li {
+      color: #f87171;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+
+    /* Form fields */
+    .field {
+      margin-bottom: 1.1rem;
+    }
+
+    .field label {
+      display: block;
+      color: #8b949e;
+      font-size: 10px;
+      letter-spacing: 2px;
+      margin-bottom: 7px;
+    }
+
+    .field-wrap {
+      position: relative;
+    }
+
+    .field-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #3b82f6;
+      font-size: 15px;
+      pointer-events: none;
+    }
+
+    .field input {
+      width: 100%;
+      background: #0d1117;
+      border: 1px solid #21262d;
+      border-radius: 8px;
+      color: #e6edf3;
+      font-size: 14px;
+      font-family: 'Courier New', Courier, monospace;
+      padding: 10px 12px 10px 38px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .field input:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.08);
+    }
+
+    .field input::placeholder {
+      color: #3d444d;
+    }
+
+    /* Login button */
+    .btn-login {
+      width: 100%;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 11px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 2.5px;
+      cursor: pointer;
+      margin-top: 0.6rem;
+      font-family: 'Courier New', Courier, monospace;
+      transition: background 0.2s, transform 0.1s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-login:hover { background: #2563eb; }
+    .btn-login:active { transform: scale(0.98); }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      color: #3d444d;
+      font-size: 11px;
+      margin-top: 1.75rem;
+      letter-spacing: 1px;
+      position: relative;
+      z-index: 2;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="brand">
+      <div class="brand-icon">F</div>
+      <span class="brand-name">ForensicAI</span>
+      <span class="restricted-badge">RESTRICTED</span>
+    </div>
+    <div class="status">
+      <div class="status-dot"></div>
+      <span class="status-text">System Online</span>
+    </div>
+  </nav>
+
+  <!-- Login Card -->
+  <div class="card">
+    <div class="corner corner-tl"></div>
+    <div class="corner corner-tr"></div>
+    <div class="corner corner-bl"></div>
+    <div class="corner corner-br"></div>
+
+    <div class="card-header">
+      <div class="card-icon">🔐</div>
+      <div class="card-title">SECURE ACCESS</div>
+      <div class="card-sub">AUTHORIZED PERSONNEL ONLY</div>
+    </div>
+
+    <div class="divider">
+      <div class="divider-line"></div>
+      <div class="divider-text">AUTHENTICATION REQUIRED</div>
+      <div class="divider-line"></div>
+    </div>
+
+    <!-- Django login form -->
+    <form method="post" action="{% url 'login' %}">
+      {% csrf_token %}
+
+      {% if form.errors %}
+        <ul class="errorlist">
+          <li>⚠ Invalid credentials. Access denied.</li>
+        </ul>
+      {% endif %}
+
+      <div class="field">
+        <label for="id_username">OFFICER ID / USERNAME</label>
+        <div class="field-wrap">
+          <span class="field-icon">👤</span>
+          <input
+            type="text"
+            id="id_username"
+            name="username"
+            placeholder="Enter username"
+            autocomplete="username"
+            required
+          />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="id_password">ACCESS CODE / PASSWORD</label>
+        <div class="field-wrap">
+          <span class="field-icon">🔑</span>
+          <input
+            type="password"
+            id="id_password"
+            name="password"
+            placeholder="Enter password"
+            autocomplete="current-password"
+            required
+          />
+        </div>
+      </div>
+
+      <input type="hidden" name="next" value="{{ next }}" />
+
+      <button type="submit" class="btn-login">AUTHENTICATE →</button>
+    </form>
+  </div>
+
+  <div class="footer">
+    FORENSIC AI PLATFORM &nbsp;·&nbsp; CRIME SCENE ANALYSIS SYSTEM &nbsp;·&nbsp; CONFIDENTIAL
+  </div>
+
+</body>
+</html>

@@ -27,7 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'change-me-in-prod')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() in ('1','true','yes','on')
+DEBUG = True
 
 ALLOWED_HOSTS = [h for h in os.getenv('DJANGO_ALLOWED_HOSTS', '*').split(',') if h.strip()]
 
@@ -66,7 +66,10 @@ ROOT_URLCONF = 'forensic_project.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],    # ← this line is critical
+        'DIRS': [
+            BASE_DIR / 'templates',                   # ← for index.html (homepage)
+            BASE_DIR / 'django_app' / 'templates',    # ← for login.html
+        ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -78,7 +81,6 @@ TEMPLATES = [
         },
     },
 ]
-
 WSGI_APPLICATION = 'forensic_project.wsgi.application'
 
 
@@ -136,3 +138,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/'          # change to your home/dashboard URL
+LOGOUT_REDIRECT_URL = '/login/'

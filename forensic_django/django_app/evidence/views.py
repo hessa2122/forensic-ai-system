@@ -168,33 +168,60 @@ def analyze_image(image_path, mode: str = "yolo_plus_heuristics"):
 
 
 def detect_blood(img):
-    """Detect blood regions using HSV color analysis."""
+    """
+    Strict blood detection using multiple filters to eliminate false positives.
+    Blood has specific: color + texture (wet/glossy) + irregular shape + minimum size.
+    """
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-
-    # Blood color range (red hues, medium-low brightness)
-    lower1 = np.array([0,   60,  20])
-    upper1 = np.array([10,  255, 160])
-    lower2 = np.array([160, 60,  20])
-    upper2 = np.array([180, 255, 160])
-
+    
+    # Much stricter blood color range
+    # Real blood: dark red, high saturation, LOW brightness (not bright red)
+    lower1 = np.array([0,   120, 20])   # was [0, 60, 20]  — raised saturation threshold
+    upper1 = np.array([8,   255, 120])  # was [10, 255, 160] — lowered brightness ceiling
+    lower2 = np.array([168, 120, 20])   # was [160, 60, 20]
+    upper2 = np.array([180, 255, 120])  # was [180, 255, 160]
+    
     mask1 = cv2.inRange(hsv, lower1, upper1)
     mask2 = cv2.inRange(hsv, lower2, upper2)
     mask  = cv2.bitwise_or(mask1, mask2)
-
-    # Morphological cleanup
-    kernel = np.ones((5,5), np.uint8)
+    
+    # Larger morphological kernel to eliminate noise
+    kernel = np.ones((9, 9), np.uint8)
     mask   = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
     mask   = cv2.morphologyEx(mask, cv2.MORPH_OPEN,  kernel)
-
+    
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
+    
     regions = []
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if area > 500:  # ignore tiny noise
-            x, y, w, h = cv2.boundingRect(cnt)
-            regions.append((x, y, x+w, y+h, int(area)))
-
+        
+        # Much larger minimum area — ignore tiny specks
+        if area < 5000:  # was 2000 — now 5000px minimum
+            continue
+        
+        x, y, w, h = cv2.boundingRect(cnt)
+        
+        # Shape filter: blood pools are not perfect rectangles
+        # Aspect ratio must not be too extreme (not a thin line/wall edge)
+        aspect = w / max(h, 1)
+        if aspect > 8 or aspect < 0.1:  # skip very thin elongated shapes
+            continue
+        
+        # Irregularity check: blood is irregular, not a clean rectangle
+        rect_area = w * h
+        fill_ratio = area / max(rect_area, 1)
+        if fill_ratio > 0.95:  # perfectly rectangular = likely wall/floor, not blood
+            continue
+        
+        # Darkness check: blood is dark, not bright red
+        region_hsv = hsv[y:y+h, x:x+w]
+        mean_v = np.mean(region_hsv[:,:,2])  # value channel
+        if mean_v > 130:  # too bright to be blood
+            continue
+        
+        regions.append((x, y, x+w, y+h, int(area)))
+    
     return regions
 
 
