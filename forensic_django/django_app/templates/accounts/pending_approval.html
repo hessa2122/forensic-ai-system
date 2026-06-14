@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pending Approval – Forensic 3D</title>
+<style>
+  body { background:#0d1117; color:#e6edf3; display:flex; align-items:center; justify-content:center; min-height:100vh; font-family:'Segoe UI',system-ui,sans-serif; }
+  .card { background:#161b22; border:1px solid #21262d; border-radius:12px; padding:40px 36px; max-width:440px; text-align:center; }
+  .icon { font-size:3rem; margin-bottom:16px; }
+  h2 { color:#f59e0b; margin-bottom:10px; }
+  p  { color:#8b949e; font-size:.9rem; line-height:1.6; }
+  a  { display:inline-block; margin-top:20px; color:#3b82f6; text-decoration:none; font-size:.9rem; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">⏳</div>
+  <h2>Awaiting Approval</h2>
+  <p>Your account is pending admin approval. You'll be able to access the system once an administrator reviews and activates your account.<br><br>
+     Please contact your system administrator if you need urgent access.</p>
+  <a href="{% url 'logout' %}">Sign Out</a>
+</div>
+</body>
+</html>

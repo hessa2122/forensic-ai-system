@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ForensicAI — 3D Scene Viewer{% if evidence %} · {{ evidence.original_filename }}{% endif %}</title>
+<style>
+  :root {
+    --bg:      #0a0c10;
+    --panel:   #111520;
+    --border:  #1e2535;
+    --accent:  #3b82f6;
+    --accent2: #f59e0b;
+    --text:    #e2e8f0;
+    --muted:   #64748b;
+    --danger:  #ef4444;
+    --success: #22c55e;
+    --font:    'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font); }
+
+  /* ── Layout ── */
+  #app { display: flex; height: 100vh; }
+  #sidebar {
+    width: 280px; min-width: 220px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden; z-index: 10;
+    transition: width .2s;
+  }
+  #sidebar.collapsed { width: 48px; }
+  #viewport { flex: 1; position: relative; }
+
+  /* ── Sidebar header ── */
+  .sb-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 14px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .sb-logo { font-size: 10px; font-weight: 700; letter-spacing: .15em; color: var(--accent); text-transform: uppercase; flex: 1; white-space: nowrap; overflow: hidden; }
+  .btn-collapse { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; padding: 2px 4px; }
+
+  /* ── Sidebar body ── */
+  .sb-body { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 16px; }
+  .sb-body::-webkit-scrollbar { width: 4px; }
+  .sb-body::-webkit-scrollbar-track { background: transparent; }
+  .sb-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .sb-section { display: flex; flex-direction: column; gap: 6px; }
+  .sb-section-title { font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding: 0 2px; }
+
+  /* ── Render mode buttons ── */
+  .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .mode-btn {
+    padding: 7px 6px; font-size: 11px; font-weight: 600;
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--muted); border-radius: 6px; cursor: pointer;
+    transition: all .15s;
+  }
+  .mode-btn:hover { border-color: var(--accent); color: var(--text); }
+  .mode-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* ── Stats ── */
+  .stat-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; padding: 4px 6px; border-radius: 4px; background: var(--bg); }
+  .stat-row .label { color: var(--muted); }
+  .stat-row .value { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* ── Clusters ── */
+  .cluster-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px; border-radius: 6px;
+    border: 1px solid var(--border); cursor: pointer;
+    transition: border-color .15s;
+  }
+  .cluster-item:hover { border-color: var(--accent); }
+  .cluster-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .cluster-label { font-size: 11px; flex: 1; }
+  .cluster-count { font-size: 10px; color: var(--muted); }
+
+  /* ── Action buttons ── */
+  .action-btn {
+    width: 100%; padding: 9px 12px; font-size: 12px; font-weight: 600;
+    border-radius: 6px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); cursor: pointer;
+    transition: all .15s; text-align: left; display: flex; align-items: center; gap: 8px;
+  }
+  .action-btn:hover { border-color: var(--accent); background: rgba(59,130,246,.08); }
+  .action-btn.active { border-color: var(--accent2); color: var(--accent2); }
+  .btn-icon { font-size: 14px; }
+
+  /* ── Reconstruct button ── */
+  .reconstruct-btn {
+    width: 100%; padding: 10px; font-size: 12px; font-weight: 700;
+    border-radius: 6px; border: none;
+    background: var(--accent); color: #fff; cursor: pointer;
+    transition: opacity .15s;
+  }
+  .reconstruct-btn:hover { opacity: .85; }
+  .reconstruct-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ── Viewport overlays ── */
+  #canvas-container { width: 100%; height: 100%; }
+  #canvas-container canvas { display: block; }
+
+  /* ── Top toolbar ── */
+  #toolbar {
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; z-index: 20;
+  }
+  .tb-btn {
+    padding: 7px 14px; font-size: 11px; font-weight: 600; border-radius: 20px;
+    border: 1px solid rgba(255,255,255,.12); background: rgba(10,12,16,.8);
+    color: var(--text); cursor: pointer; backdrop-filter: blur(6px);
+    transition: all .15s; white-space: nowrap;
+  }
+  .tb-btn:hover { border-color: var(--accent); }
+  .tb-btn.active { border-color: var(--accent2); color: var(--accent2); }
+
+  /* ── Status / loading overlay ── */
+  #overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(10,12,16,.92); z-index: 30;
+    gap: 16px; text-align: center; padding: 32px;
+  }
+  #overlay.hidden { display: none; }
+  .spinner {
+    width: 48px; height: 48px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .overlay-title { font-size: 18px; font-weight: 700; }
+  .overlay-sub { font-size: 13px; color: var(--muted); max-width: 320px; }
+  .overlay-error .spinner { border-top-color: var(--danger); }
+  .overlay-error .overlay-title { color: var(--danger); }
+
+  /* ── HUD (bottom-right) ── */
+  #hud {
+    position: absolute; bottom: 16px; right: 16px;
+    font-size: 11px; color: var(--muted);
+    background: rgba(10,12,16,.7);
+    padding: 8px 12px; border-radius: 8px;
+    border: 1px solid var(--border);
+    backdrop-filter: blur(4px);
+    line-height: 1.8; z-index: 20;
+    pointer-events: none;
+  }
+
+  /* ── Measure tooltip ── */
+  #measure-tip {
+    position: absolute; top: 16px; right: 16px;
+    background: var(--accent2); color: #000;
+    padding: 6px 12px; border-radius: 6px;
+    font-size: 12px; font-weight: 700; z-index: 25;
+    display: none;
+  }
+
+  /* ── Depth overlay ── */
+  #depth-overlay {
+    position: absolute; inset: 0; z-index: 15;
+    background-size: cover; background-position: center;
+    opacity: .5; pointer-events: none;
+    display: none;
+  }
+
+  /* ── Axis compass ── */
+  #compass { position: absolute; bottom: 16px; left: 16px; z-index: 20; }
+
+  /* ── No-scene message ── */
+  #no-scene {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px; color: var(--muted); text-align: center; padding: 32px;
+  }
+  #no-scene .ns-icon { font-size: 56px; opacity: .3; }
+  #no-scene .ns-title { font-size: 18px; font-weight: 600; color: var(--text); opacity: .5; }
+  #no-scene .ns-sub { font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ════════════════════════════════════ SIDEBAR ════════════════════════ -->
+  <div id="sidebar">
+    <div class="sb-header">
+      <span class="sb-logo">ForensicAI · 3D</span>
+      <button class="btn-collapse" id="btnCollapse" title="Collapse">‹</button>
+    </div>
+
+    <div class="sb-body" id="sbBody">
+
+      <!-- Evidence info -->
+      <div class="sb-section">
+        <div class="sb-section-title">Evidence</div>
+        <div class="stat-row">
+          <span class="label">File</span>
+          <span class="value" style="font-size:10px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            {% if evidence %}{{ evidence.original_filename|default:"—" }}{% else %}—{% endif %}
+          </span>
+        </div>
+      </div>
+
+      <!-- Render mode -->
+      <div class="sb-section">
+        <div class="sb-section-title">Render Mode</div>
+        <div class="mode-grid">
+          <button class="mode-btn active" data-mode="solid"    onclick="setMode('solid')">Solid</button>
+          <button class="mode-btn"        data-mode="wire"     onclick="setMode('wire')">Wireframe</button>
+          <button class="mode-btn"        data-mode="xray"     onclick="setMode('xray')">X-Ray</button>
+          <button class="mode-btn"        data-mode="normal"   onclick="setMode('normal')">Normals</button>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="sb-section">
+        <div class="sb-section-title">Scene Stats</div>
+        <div class="stat-row"><span class="label">Vertices</span><span class="value" id="statVerts">—</span></div>
+        <div class="stat-row"><span class="label">Triangles</span><span class="value" id="statTris">—</span></div>
+        <div class="stat-row"><span class="label">Clusters</span><span class="value" id="statClusters">—</span></div>
+        <div class="stat-row"><span class="label">Source pts</span><span class="value" id="statPoints">—</span></div>
+        <div class="stat-row"><span class="label">Format</span><span class="value" id="statFormat">—</span></div>
+      </div>
+
+      <!-- Lighting -->
+      <div class="sb-section">
+        <div class="sb-section-title">Lighting</div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:11px;">
+          <label style="color:var(--muted);flex:1">Ambient</label>
+          <input type="range" min="0" max="200" value="80" id="sliderAmbient" style="flex:2" oninput="updateLighting()"/>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:11px;margin-top:4px;">
+          <label style="color:var(--muted);flex:1">Directional</label>
+          <input type="range" min="0" max="300" value="150" id="sliderDir" style="flex:2" oninput="updateLighting()"/>
+        </div>
+      </div>
+
+      <!-- Evidence clusters -->
+      <div class="sb-section">
+        <div class="sb-section-title">Evidence Clusters</div>
+        <div id="clusterList" style="display:flex;flex-direction:column;gap:4px;"></div>
+        <div id="noClusters" style="font-size:11px;color:var(--muted);display:none;">No clusters detected.</div>
+      </div>
+
+      <!-- Tools -->
+      <div class="sb-section">
+        <div class="sb-section-title">Tools</div>
+        <button class="action-btn" id="btnMeasure" onclick="toggleMeasure()">
+          <span class="btn-icon">📏</span> Measure Distance
+        </button>
+        <button class="action-btn" onclick="resetCamera()">
+          <span class="btn-icon">🎯</span> Reset Camera
+        </button>
+        <button class="action-btn" onclick="toggleDepth()">
+          <span class="btn-icon">🌊</span> Toggle Depth Map
+        </button>
+        <button class="action-btn" onclick="exportScreenshot()">
+          <span class="btn-icon">📸</span> Screenshot
+        </button>
+      </div>
+
+      <!-- Reconstruct -->
+      {% if evidence %}
+      <div class="sb-section">
+        <div class="sb-section-title">Pipeline</div>
+        <button class="reconstruct-btn" id="btnReconstruct" onclick="triggerReconstruct()">
+          ⚡ Run Reconstruction
+        </button>
+        <div id="reconstructStatus" style="font-size:10px;color:var(--muted);margin-top:4px;text-align:center;"></div>
+      </div>
+      {% endif %}
+
+    </div><!-- /sb-body -->
+  </div><!-- /sidebar -->
+
+  <!-- ════════════════════════════════════ VIEWPORT ════════════════════════ -->
+  <div id="viewport">
+
+    <!-- Top toolbar -->
+    <div id="toolbar">
+      <button class="tb-btn" onclick="setMode('solid')">● Solid</button>
+      <button class="tb-btn" onclick="setMode('wire')">⬡ Wire</button>
+      <button class="tb-btn" onclick="resetCamera()">⌖ Reset</button>
+      <button class="tb-btn" id="tbMeasure" onclick="toggleMeasure()">📏 Measure</button>
+      <button class="tb-btn" onclick="exportScreenshot()">📸 Shot</button>
+    </div>
+
+    <!-- Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- Depth overlay -->
+    <div id="depth-overlay" {% if depth_url %}style="background-image:url('{{ depth_url }}')"{% endif %}></div>
+
+    <!-- Measure tip -->
+    <div id="measure-tip">Click two points on the mesh</div>
+
+    <!-- HUD -->
+    <div id="hud" id="hud">
+      <div>Drag: Rotate &nbsp;|&nbsp; Scroll: Zoom &nbsp;|&nbsp; Right-drag: Pan</div>
+      <div id="hudCoords" style="margin-top:2px;"></div>
+    </div>
+
+    <!-- Axis compass canvas -->
+    <canvas id="compass" width="80" height="80"></canvas>
+
+    <!-- No scene placeholder -->
+    <div id="no-scene" {% if mesh_url %}style="display:none"{% endif %}>
+      <div class="ns-icon">🏛️</div>
+      <div class="ns-title">No 3D scene yet</div>
+      <div class="ns-sub">Click "Run Reconstruction" to generate a 3D scene from this evidence image.</div>
+    </div>
+
+    <!-- Loading / error overlay -->
+    <div id="overlay" {% if not mesh_url %}class="hidden"{% endif %}>
+      <div class="spinner"></div>
+      <div class="overlay-title" id="overlayTitle">Loading scene…</div>
+      <div class="overlay-sub"  id="overlaySub">Preparing 3D mesh</div>
+    </div>
+
+  </div><!-- /viewport -->
+</div><!-- /app -->
+
+<!-- ════════════════════════════════════════ THREE.JS ═══════════════════════ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ── GLTFLoader (inline minimal) ───────────────────────────────────────────────
+// We load it from CDN unpkg to support GLB files
+</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/PLYLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+'use strict';
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  CONFIG (injected from Django template)
+// ═════════════════════════════════════════════════════════════════════════════
+const MESH_URL   = {% if mesh_url %}"{{ mesh_url|escapejs }}"{% else %}null{% endif %};
+const MESH_TYPE  = "{{ mesh_type|default:'glb' }}";
+const DEPTH_URL  = {% if depth_url %}"{{ depth_url|escapejs }}"{% else %}null{% endif %};
+const CLUSTERS   = {{ clusters|default:"[]"|safe }};
+const EVIDENCE_ID = {% if evidence %}{{ evidence.pk }}{% else %}null{% endif %};
+const SCENE_ID   = {% if scene_id %}{{ scene_id }}{% else %}null{% endif %};
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  THREE.JS SCENE
+// ═════════════════════════════════════════════════════════════════════════════
+let renderer, scene, camera, controls;
+let sceneGroup = null;
+let ambientLight, dirLight, hemiLight;
+let currentMode = 'solid';
+let meshObject = null;       // the loaded mesh (THREE.Mesh or THREE.Group)
+let wireOverlay = null;
+let measureMode = false;
+let measurePoints = [];
+let measureMarkers = [];
+let measureLine = null;
+let raycaster, mouse;
+let depthVisible = false;
+
+function initThree() {
+  const container = document.getElementById('canvas-container');
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(container.offsetWidth, container.offsetHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.2;
+  container.appendChild(renderer.domElement);
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0c10);
+  scene.fog = new THREE.FogExp2(0x0a0c10, 0.04);
+
+  camera = new THREE.PerspectiveCamera(55, container.offsetWidth / container.offsetHeight, 0.01, 200);
+  camera.position.set(0, 2, 8);
+
+  // Lights
+  ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+  scene.add(ambientLight);
+
+  dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+  dirLight.position.set(5, 10, 7);
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.width = 2048;
+  dirLight.shadow.mapSize.height = 2048;
+  scene.add(dirLight);
+
+  hemiLight = new THREE.HemisphereLight(0x4488bb, 0x332211, 0.6);
+  scene.add(hemiLight);
+
+  // fill light from behind
+  const fillLight = new THREE.DirectionalLight(0x8899ff, 0.4);
+  fillLight.position.set(-5, -2, -5);
+  scene.add(fillLight);
+
+  // Grid
+  const grid = new THREE.GridHelper(20, 40, 0x1e2535, 0x1e2535);
+  grid.position.y = -0.01;
+  scene.add(grid);
+
+  // Controls
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.screenSpacePanning = true;
+  controls.minDistance = 0.5;
+  controls.maxDistance = 80;
+
+  // Raycaster for measure
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
+
+  renderer.domElement.addEventListener('click', onCanvasClick);
+  renderer.domElement.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('resize', onResize);
+
+  sceneGroup = new THREE.Group();
+  scene.add(sceneGroup);
+
+  animate();
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+  drawCompass();
+}
+
+function onResize() {
+  const c = document.getElementById('canvas-container');
+  camera.aspect = c.offsetWidth / c.offsetHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(c.offsetWidth, c.offsetHeight);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  MESH LOADING
+// ═════════════════════════════════════════════════════════════════════════════
+function loadMesh(url, type) {
+  if (!url) { showNoScene(); return; }
+
+  showOverlay('Loading 3D scene…', 'Fetching mesh file');
+  document.getElementById('no-scene').style.display = 'none';
+
+  if (type === 'glb' || url.endsWith('.glb')) {
+    loadGLB(url);
+  } else {
+    loadPLY(url);
+  }
+}
+
+function loadGLB(url) {
+  const loader = new THREE.GLTFLoader();
+  loader.load(
+    url,
+    (gltf) => {
+      const model = gltf.scene;
+      setupLoadedMesh(model, 'GLB');
+    },
+    (prog) => {
+      if (prog.total > 0) {
+        const pct = Math.round(prog.loaded / prog.total * 100);
+        document.getElementById('overlaySub').textContent = `Loading… ${pct}%`;
+      }
+    },
+    (err) => {
+      console.warn('GLB load error, trying PLY fallback:', err);
+      // Try PLY fallback at same base URL
+      const plyUrl = url.replace(/\.glb$/i, '.ply');
+      loadPLY(plyUrl);
+    }
+  );
+}
+
+function loadPLY(url) {
+  const loader = new THREE.PLYLoader();
+  loader.load(
+    url,
+    (geometry) => {
+      geometry.computeVertexNormals();
+      const hasCols = geometry.attributes.color !== undefined;
+      let material;
+      if (hasCols) {
+        material = new THREE.MeshStandardMaterial({
+          vertexColors: true,
+          roughness: 0.75,
+          metalness: 0.05,
+        });
+      } else {
+        material = new THREE.MeshStandardMaterial({
+          color: 0x8899aa,
+          roughness: 0.75,
+          metalness: 0.05,
+        });
+      }
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      const group = new THREE.Group();
+      group.add(mesh);
+      setupLoadedMesh(group, 'PLY');
+    },
+    (prog) => {
+      if (prog.total > 0) {
+        const pct = Math.round(prog.loaded / prog.total * 100);
+        document.getElementById('overlaySub').textContent = `Loading… ${pct}%`;
+      }
+    },
+    (err) => {
+      console.error('PLY load error:', err);
+      showError('Failed to load 3D scene. Try re-running reconstruction.');
+    }
+  );
+}
+
+function setupLoadedMesh(group, fmt) {
+  // Clear old mesh
+  while (sceneGroup.children.length) sceneGroup.remove(sceneGroup.children[0]);
+  meshObject = null;
+  wireOverlay = null;
+
+  // Centre + scale
+  const box = new THREE.Box3().setFromObject(group);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const centre = new THREE.Vector3();
+  box.getCenter(centre);
+
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const targetSize = 6.0;
+  const scale = targetSize / (maxDim || 1);
+  group.scale.setScalar(scale);
+  group.position.sub(centre.multiplyScalar(scale));
+  group.updateMatrixWorld(true);
+
+  // Ensure all meshes have good materials
+  group.traverse((node) => {
+    if (node.isMesh) {
+      node.castShadow = true;
+      node.receiveShadow = true;
+
+      node.geometry.computeVertexNormals();
+      node.material = new THREE.MeshStandardMaterial({
+        color: 0x9db4c8,
+        emissive: 0x101820,
+        roughness: 0.65,
+        metalness: 0.04,
+        side: THREE.DoubleSide,
+      });
+    }
+  });
+
+  sceneGroup.add(group);
+  meshObject = group;
+
+  // Wire overlay, preserving each mesh transform.
+  wireOverlay = new THREE.Group();
+  group.traverse((n) => {
+    if (!n.isMesh || !n.geometry) return;
+    const wire = new THREE.LineSegments(
+      new THREE.EdgesGeometry(n.geometry, 28),
+      new THREE.LineBasicMaterial({ color: 0x3b82f6, opacity: 0.18, transparent: true })
+    );
+    wire.position.copy(n.getWorldPosition(new THREE.Vector3()));
+    wire.quaternion.copy(n.getWorldQuaternion(new THREE.Quaternion()));
+    wire.scale.copy(n.getWorldScale(new THREE.Vector3()));
+    sceneGroup.worldToLocal(wire.position);
+    wireOverlay.add(wire);
+  });
+  wireOverlay.visible = false;
+  sceneGroup.add(wireOverlay);
+
+  // Stats
+  let verts = 0, tris = 0;
+  group.traverse((n) => {
+    if (n.isMesh && n.geometry) {
+      verts += (n.geometry.attributes.position?.count || 0);
+      tris  += (n.geometry.index ? n.geometry.index.count / 3 : (n.geometry.attributes.position?.count || 0) / 3);
+    }
+  });
+  document.getElementById('statVerts').textContent    = verts.toLocaleString();
+  document.getElementById('statTris').textContent     = Math.round(tris).toLocaleString();
+  document.getElementById('statClusters').textContent = CLUSTERS.length;
+  document.getElementById('statFormat').textContent   = fmt;
+
+  // Reposition camera to frame the actual transformed mesh.
+  const fittedBox = new THREE.Box3().setFromObject(group);
+  const fittedSphere = new THREE.Sphere();
+  fittedBox.getBoundingSphere(fittedSphere);
+  const radius = Math.max(fittedSphere.radius, 1);
+  const distance = radius / Math.sin(THREE.MathUtils.degToRad(camera.fov * 0.5));
+  camera.position.set(
+    fittedSphere.center.x,
+    fittedSphere.center.y + radius * 0.35,
+    fittedSphere.center.z + distance * 1.15
+  );
+  camera.near = Math.max(distance / 100, 0.01);
+  camera.far = Math.max(distance * 100, 200);
+  camera.updateProjectionMatrix();
+  controls.target.copy(fittedSphere.center);
+  controls.update();
+
+  // Apply current mode
+  applyMode(currentMode);
+
+  hideOverlay();
+  document.getElementById('no-scene').style.display = 'none';
+  buildClusterList();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  RENDER MODES
+// ═════════════════════════════════════════════════════════════════════════════
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  applyMode(mode);
+}
+
+function applyMode(mode) {
+  if (!meshObject) return;
+
+  meshObject.traverse((node) => {
+    if (!node.isMesh) return;
+    const mat = node.material;
+
+    switch (mode) {
+      case 'solid':
+        mat.wireframe = false;
+        mat.opacity = 1;
+        mat.transparent = false;
+        mat.depthWrite = true;
+        mat.color?.setHex && mat.color.set(mat.userData.origColor || 0xffffff);
+        break;
+
+      case 'wire':
+        mat.wireframe = true;
+        mat.opacity = 1;
+        mat.transparent = false;
+        break;
+
+      case 'xray':
+        mat.wireframe = false;
+        mat.opacity = 0.35;
+        mat.transparent = true;
+        mat.depthWrite = false;
+        break;
+
+      case 'normal':
+        mat.wireframe = false;
+        mat.opacity = 1;
+        mat.transparent = false;
+        // swap to normal material
+        node.material = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
+        return;
+    }
+
+    // restore from normal mode
+    if (!(mat instanceof THREE.MeshNormalMaterial)) {
+      node.material = mat;
+    }
+  });
+
+  if (wireOverlay) wireOverlay.visible = (mode === 'solid');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  LIGHTING CONTROLS
+// ═════════════════════════════════════════════════════════════════════════════
+function updateLighting() {
+  if (ambientLight) ambientLight.intensity = parseInt(document.getElementById('sliderAmbient').value) / 100;
+  if (dirLight)     dirLight.intensity     = parseInt(document.getElementById('sliderDir').value)     / 100;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  CLUSTERS
+// ═════════════════════════════════════════════════════════════════════════════
+function buildClusterList() {
+  const list = document.getElementById('clusterList');
+  const none = document.getElementById('noClusters');
+  list.innerHTML = '';
+
+  if (!CLUSTERS || CLUSTERS.length === 0) {
+    none.style.display = 'block';
+    document.getElementById('statClusters').textContent = '0';
+    return;
+  }
+
+  none.style.display = 'none';
+  document.getElementById('statClusters').textContent = CLUSTERS.length;
+
+  CLUSTERS.forEach((cl, i) => {
+    const [r, g, b] = cl.colour || [150,150,200];
+    const hex = `rgb(${r},${g},${b})`;
+    const item = document.createElement('div');
+    item.className = 'cluster-item';
+    item.innerHTML = `
+      <div class="cluster-dot" style="background:${hex}"></div>
+      <div class="cluster-label">Cluster ${i+1}</div>
+      <div class="cluster-count">${(cl.count||0).toLocaleString()} pts</div>
+    `;
+    item.onclick = () => flyToCluster(cl);
+    list.appendChild(item);
+  });
+}
+
+function flyToCluster(cl) {
+  if (!cl.centroid || !controls) return;
+  const [x, y, z] = cl.centroid;
+  // animate camera target to cluster centroid
+  const box = new THREE.Box3().setFromObject(sceneGroup);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const scale = 6.0 / Math.max(size.x, size.y, size.z, 1);
+
+  const tx = x * scale, ty = y * scale, tz = z * scale;
+  controls.target.set(tx, ty, tz);
+  camera.position.set(tx, ty + 2, tz + 4);
+  controls.update();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  MEASURE TOOL
+// ═════════════════════════════════════════════════════════════════════════════
+function toggleMeasure() {
+  measureMode = !measureMode;
+  document.getElementById('btnMeasure').classList.toggle('active', measureMode);
+  document.getElementById('tbMeasure').classList.toggle('active', measureMode);
+  const tip = document.getElementById('measure-tip');
+  if (measureMode) {
+    tip.style.display = 'block';
+    tip.textContent = 'Click two points on the mesh';
+    clearMeasure();
+  } else {
+    tip.style.display = 'none';
+  }
+}
+
+function clearMeasure() {
+  measurePoints = [];
+  measureMarkers.forEach(m => scene.remove(m));
+  measureMarkers = [];
+  if (measureLine) { scene.remove(measureLine); measureLine = null; }
+}
+
+function onCanvasClick(e) {
+  if (!measureMode || !meshObject) return;
+
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x =  ((e.clientX - rect.left)  / rect.width)  * 2 - 1;
+  mouse.y = -((e.clientY - rect.top)   / rect.height) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObject(meshObject, true);
+  if (!hits.length) return;
+
+  const pt = hits[0].point.clone();
+  measurePoints.push(pt);
+
+  // sphere marker
+  const sph = new THREE.Mesh(
+    new THREE.SphereGeometry(0.08, 8, 8),
+    new THREE.MeshBasicMaterial({ color: 0xf59e0b })
+  );
+  sph.position.copy(pt);
+  scene.add(sph);
+  measureMarkers.push(sph);
+
+  if (measurePoints.length === 2) {
+    const dist = measurePoints[0].distanceTo(measurePoints[1]).toFixed(3);
+    const geo  = new THREE.BufferGeometry().setFromPoints(measurePoints);
+    measureLine = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xf59e0b, linewidth: 2 }));
+    scene.add(measureLine);
+
+    const tip = document.getElementById('measure-tip');
+    tip.textContent = `Distance: ${dist} units`;
+
+    setTimeout(() => {
+      measureMode = false;
+      document.getElementById('btnMeasure').classList.remove('active');
+      document.getElementById('tbMeasure').classList.remove('active');
+    }, 3000);
+  }
+}
+
+function onMouseMove(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  document.getElementById('hudCoords').textContent = `x:${mx} y:${my}`;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  CAMERA
+// ═════════════════════════════════════════════════════════════════════════════
+function resetCamera() {
+  camera.position.set(0, 2, 10);
+  controls.target.set(0, 0, 0);
+  controls.update();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  DEPTH MAP TOGGLE
+// ═════════════════════════════════════════════════════════════════════════════
+function toggleDepth() {
+  if (!DEPTH_URL) { alert('No depth map available.'); return; }
+  depthVisible = !depthVisible;
+  const el = document.getElementById('depth-overlay');
+  el.style.display = depthVisible ? 'block' : 'none';
+  if (depthVisible && !el.style.backgroundImage.includes('url')) {
+    el.style.backgroundImage = `url('${DEPTH_URL}')`;
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  SCREENSHOT
+// ═════════════════════════════════════════════════════════════════════════════
+function exportScreenshot() {
+  renderer.render(scene, camera);
+  const url = renderer.domElement.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `forensic_scene_${Date.now()}.png`;
+  a.click();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  AXIS COMPASS
+// ═════════════════════════════════════════════════════════════════════════════
+function drawCompass() {
+  const cv = document.getElementById('compass');
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, 80, 80);
+
+  const cx = 40, cy = 40, r = 28;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(10,12,16,0.7)'; ctx.fill();
+  ctx.strokeStyle = '#1e2535'; ctx.lineWidth = 1; ctx.stroke();
+
+  const axes = [
+    { dir: new THREE.Vector3(1,0,0), col: '#ef4444', lbl: 'X' },
+    { dir: new THREE.Vector3(0,1,0), col: '#22c55e', lbl: 'Y' },
+    { dir: new THREE.Vector3(0,0,1), col: '#3b82f6', lbl: 'Z' },
+  ];
+
+  axes.forEach(({ dir, col, lbl }) => {
+    const v = dir.clone().applyQuaternion(camera.quaternion.clone().invert());
+    const ex = cx + v.x * r * 0.8;
+    const ey = cy - v.y * r * 0.8;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey);
+    ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = col; ctx.font = '10px Inter,sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(lbl, ex, ey - 2);
+  });
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  OVERLAY HELPERS
+// ═════════════════════════════════════════════════════════════════════════════
+function showOverlay(title, sub) {
+  const el = document.getElementById('overlay');
+  el.className = '';
+  document.getElementById('overlayTitle').textContent = title;
+  document.getElementById('overlaySub').textContent   = sub;
+}
+
+function hideOverlay() {
+  document.getElementById('overlay').className = 'hidden';
+}
+
+function showError(msg) {
+  const el = document.getElementById('overlay');
+  el.className = 'overlay-error';
+  document.getElementById('overlayTitle').textContent = 'Error';
+  document.getElementById('overlaySub').textContent   = msg;
+}
+
+function showNoScene() {
+  hideOverlay();
+  document.getElementById('no-scene').style.display = 'flex';
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  SIDEBAR COLLAPSE
+// ═════════════════════════════════════════════════════════════════════════════
+let sidebarCollapsed = false;
+document.getElementById('btnCollapse').onclick = () => {
+  sidebarCollapsed = !sidebarCollapsed;
+  document.getElementById('sidebar').classList.toggle('collapsed', sidebarCollapsed);
+  document.getElementById('btnCollapse').textContent = sidebarCollapsed ? '›' : '‹';
+  document.getElementById('sbBody').style.display = sidebarCollapsed ? 'none' : 'flex';
+  setTimeout(onResize, 250);
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  RECONSTRUCT API CALL
+// ═════════════════════════════════════════════════════════════════════════════
+async function triggerReconstruct() {
+  if (!EVIDENCE_ID) return;
+  const btn = document.getElementById('btnReconstruct');
+  const status = document.getElementById('reconstructStatus');
+  btn.disabled = true;
+  btn.textContent = '⏳ Processing…';
+  status.textContent = 'Running depth estimation and mesh reconstruction…';
+  showOverlay('Reconstructing scene…', 'This may take 30–90 seconds');
+
+  try {
+    const resp = await fetch('/reconstruction/reconstruct/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+      body: JSON.stringify({ evidence_id: EVIDENCE_ID }),
+    });
+    const data = await resp.json();
+
+    if (!resp.ok) throw new Error(data.error || 'Unknown error');
+
+    status.textContent = `✅ Done — ${data.total_points?.toLocaleString()} pts, ${data.num_clusters} clusters`;
+    document.getElementById('statPoints').textContent = data.total_points?.toLocaleString() || '—';
+
+    if (data.mesh_url) loadMesh(data.mesh_url, data.mesh_type || 'glb');
+    else await loadLatestSceneData();
+  } catch (err) {
+    showError(err.message);
+    status.textContent = '❌ ' + err.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⚡ Run Reconstruction';
+  }
+}
+
+function getCookie(name) {
+  const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+  return v ? v.pop() : '';
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  BOOT
+// ═════════════════════════════════════════════════════════════════════════════
+initThree();
+
+async function loadLatestSceneData() {
+  if (!EVIDENCE_ID) { showNoScene(); return; }
+  showOverlay('Checking 3D scene…', 'Looking for the latest reconstruction');
+  try {
+    const dataResp = await fetch(`/reconstruction/${EVIDENCE_ID}/data/`);
+    if (!dataResp.ok) throw new Error('No completed reconstruction found for this evidence.');
+    const sceneData = await dataResp.json();
+    if (!sceneData.mesh_url) throw new Error('The reconstruction record has no mesh file.');
+    loadMesh(sceneData.mesh_url, sceneData.mesh_type || 'glb');
+  } catch (err) {
+    console.warn('No scene data available:', err);
+    showNoScene();
+  }
+}
+
+if (MESH_URL) loadMesh(MESH_URL, MESH_TYPE);
+else loadLatestSceneData();
+</script>
+</body>
+</html>

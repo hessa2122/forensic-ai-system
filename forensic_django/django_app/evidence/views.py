@@ -1,357 +1,379 @@
-# evidence/views.py
-
-import os
-import cv2
+"""
+evidence/views.py
+Adds approval guard and audit logging to all evidence operations.
+"""
 import json
-import numpy as np
+import logging
+import os
 from pathlib import Path
-from django.shortcuts import render, get_object_or_404
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.core.files.storage import default_storage
+
 from django.conf import settings
-from ultralytics import YOLO
-from cases.models import Case
+from django.contrib.auth.decorators import login_required
+from django.db.models import Q
+from django.http import Http404, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 
-# ── Load models once at startup ──────────────────────────────────────────────
-BASE_DIR = Path(__file__).resolve().parent
+from .ai_detector import analyze_image
+from .models import DetectionResult, Evidence
+from accounts.models import log_action
 
-# Primary forensic model (your newly trained one)
-FORENSIC_MODEL_PATH = BASE_DIR / 'weights' / 'forensic_best_v2.pt'
-# Fallback to original if new one not ready
-if not FORENSIC_MODEL_PATH.exists():
-    FORENSIC_MODEL_PATH = BASE_DIR / 'weights' / 'forensic_best.pt'
-
-_forensic_model = None
-
-def get_forensic_model():
-    global _forensic_model
-    if _forensic_model is not None:
-        return _forensic_model
-    if not FORENSIC_MODEL_PATH.exists():
-        raise FileNotFoundError(f"YOLO weights not found: {FORENSIC_MODEL_PATH}")
-    _forensic_model = YOLO(str(FORENSIC_MODEL_PATH))
-    return _forensic_model
+logger = logging.getLogger(__name__)
+ANALYSIS_COPY_SUFFIXES = {'.jfif', '.jpe'}
 
 
-# Class colors for visualization (BGR format for OpenCV)
-CLASS_COLORS = {
-    'gun':           (0,   0,   255),   # Red
-    'pistol':        (0,   0,   200),   # Dark red
-    'rifle':         (0,   50,  255),   # Orange-red
-    'knife':         (0,   165, 255),   # Orange
-    'grenade':       (0,   0,   128),   # Dark red
-    'blood':         (50,  50,  200),   # Blood red
-    'fingerprint':   (255, 200, 0  ),   # Cyan-ish
-    'shell_casing':  (0,   255, 255),   # Yellow
-    'rope':          (42,  42,  165),   # Brown
-    'drugs':         (0,   255, 0  ),   # Green
-    'footprint':     (255, 0,   255),   # Magenta
-    'broken_glass':  (200, 200, 200),   # Light gray
-}
-
-DANGER_CLASSES = {'gun', 'pistol', 'rifle', 'grenade', 'knife'}
-TRACE_CLASSES  = {'blood', 'fingerprint', 'shell_casing', 'footprint', 'bomb'}
+def _case_for_user(case_id, user):
+    from cases.models import Case
+    if user.is_staff:
+        return get_object_or_404(Case, id=case_id)
+    return get_object_or_404(
+        Case,
+        Q(created_by=user) | Q(assigned_to=user) | Q(created_by__isnull=True),
+        id=case_id,
+    )
 
 
-def analyze_image(image_path, mode: str = "yolo_plus_heuristics"):
-    """Run forensic analysis on an image.
-
-    mode:
-      - "yolo_only": YOLO detections only (skip HSV blood / texture fingerprint heuristics)
-      - "yolo_plus_heuristics": YOLO + heuristics (current default)
-    """
-    img = cv2.imread(str(image_path))
-    if img is None:
-        return {'error': 'Could not read image'}
-
-
-    results_data = {
-        'detections': [],
-        'threat_level': 'LOW',
-        'summary': {},
-        'annotated_image': None,
+def _dashboard_detection(det):
+    label = str(det.get('label', 'evidence')).strip().lower() or 'evidence'
+    display_label = label.replace('_', ' ').title()
+    confidence = float(det.get('confidence') or 0)
+    significance = det.get('forensic_significance', 'low').lower()
+    risk_map = {'high': 'high', 'medium': 'moderate', 'low': 'low'}
+    bbox = det.get('bbox') if isinstance(det.get('bbox'), list) else [0, 0, 0, 0]
+    if len(bbox) != 4:
+        bbox = [0, 0, 0, 0]
+    return {
+        'label':         label,
+        'class_name':    label,
+        'display_label': display_label,
+        'source':        det.get('source', 'unknown'),
+        'description':   det.get('description', ''),
+        'location':      det.get('location', ''),
+        'confidence':    round(confidence, 3),
+        'confidence_pct': round(confidence * 100, 1),
+        'bbox':          {'x1': bbox[0], 'y1': bbox[1], 'x2': bbox[2], 'y2': bbox[3]},
+        'risk_level':    risk_map.get(significance, 'low'),
+        'risk_color':    det.get('color', '#6b7280'),
     }
 
-    # ── 1. YOLOv8 Detection ───────────────────────────────────────────────
-    forensic_model = get_forensic_model()
-    yolo_results = forensic_model(img, conf=0.25, iou=0.45)
+
+def _analysis_path(evidence):
+    image_path = Path(evidence.file.path)
+    out_dir = Path(settings.MEDIA_ROOT) / 'results' / 'analysis'
+    out_dir.mkdir(parents=True, exist_ok=True)
+    jpg_path = out_dir / f'evidence_{evidence.id}_analysis.jpg'
+
+    if jpg_path.exists() and jpg_path.stat().st_mtime >= image_path.stat().st_mtime:
+        return str(jpg_path)
+
+    from PIL import Image, ImageOps
+    with Image.open(image_path) as img:
+        img = ImageOps.exif_transpose(img)
+        if img.mode in {'RGBA', 'LA'}:
+            background = Image.new('RGB', img.size, 'white')
+            background.paste(img, mask=img.getchannel('A'))
+            img = background
+        else:
+            img = img.convert('RGB')
+        img.save(jpg_path, 'JPEG', quality=95, optimize=True)
+    return str(jpg_path)
 
 
-    for r in yolo_results:
-        for box in r.boxes:
-            cls_id  = int(box.cls[0])
-            cls_name = forensic_model.names[cls_id]
-            cls_name_raw = cls_name
-            # Normalize class names so comparisons against DANGER/TRACE sets are consistent
-            cls_name = str(cls_name_raw).lower().strip()
-            conf    = float(box.conf[0])
-            x1, y1, x2, y2 = map(int, box.xyxy[0])
-
-            detection = {
-                'class':      cls_name,
-                'confidence': round(conf, 3),
-                'bbox':       [x1, y1, x2, y2],
-                'center':     [(x1+x2)//2, (y1+y2)//2],
-                'type':       'weapon' if cls_name in DANGER_CLASSES
-                              else 'trace' if cls_name in TRACE_CLASSES
-                              else 'other',
-                # Keep raw + normalized class for debugging/analysis
-                'class_raw':  str(cls_name_raw),
-                'debug_yolo_class': cls_name_raw,
-                'class_norm': cls_name,
-            }
-            results_data['detections'].append(detection)
-
-            # Draw bounding box
-            color = CLASS_COLORS.get(cls_name, (255, 255, 255))
-            cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
-            label = f"{cls_name} {conf:.0%}"
-            (lw, lh), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-            cv2.rectangle(img, (x1, y1-lh-8), (x1+lw+4, y1), color, -1)
-            cv2.putText(img, label, (x1+2, y1-4),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
-
-    # ── 2. Blood Detection (color analysis) ──────────────────────────────
-    if mode != "yolo_only":
-        blood_regions = detect_blood(img)
-        for (bx1, by1, bx2, by2, area) in blood_regions:
-            results_data['detections'].append({
-                'class':      'blood',
-                'confidence': 0.80,
-                'bbox':       [bx1, by1, bx2, by2],
-                'center':     [(bx1+bx2)//2, (by1+by2)//2],
-                'type':       'trace',
-                'area_px':    area,
-            })
-            cv2.rectangle(img, (bx1, by1), (bx2, by2), (50, 50, 200), 2)
-            cv2.putText(img, f"blood ~{area}px", (bx1, by1-5),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (50,50,200), 2)
-
-    # ── 3. Fingerprint Detection (texture analysis) ───────────────────────
-    if mode != "yolo_only":
-        fp_regions = detect_fingerprints(img)
-        for (fx, fy, fw, fh) in fp_regions:
-            results_data['detections'].append({
-                'class':      'fingerprint',
-                'confidence': 0.65,
-                'bbox':       [fx, fy, fx+fw, fy+fh],
-                'center':     [fx+fw//2, fy+fh//2],
-                'type':       'trace',
-            })
-            cv2.rectangle(img, (fx, fy), (fx+fw, fy+fh), (255, 200, 0), 2)
-            cv2.putText(img, "fingerprint", (fx, fy-5),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,200,0), 2)
+def _display_label(label):
+    return str(label or 'Evidence').replace('_', ' ').title()
 
 
-    # ── 4. Threat Level ───────────────────────────────────────────────────
-    classes_found = {d['class'] for d in results_data['detections']}
-    if classes_found & DANGER_CLASSES:
-        results_data['threat_level'] = 'HIGH'
-    elif classes_found & TRACE_CLASSES:
-        results_data['threat_level'] = 'MEDIUM'
-
-    # ── 5. Summary ────────────────────────────────────────────────────────
-    summary = {}
-    for d in results_data['detections']:
-        summary[d['class']] = summary.get(d['class'], 0) + 1
-    results_data['summary'] = summary
-
-    # ── 6. Save annotated image ───────────────────────────────────────────
-    image_path = Path(image_path)
-    annotated_path = image_path.with_name(image_path.stem + '_analyzed' + image_path.suffix)
-    cv2.imwrite(str(annotated_path), img)
-    results_data['annotated_image'] = annotated_path.name
-
-
-    return results_data
+def _location_bbox(location, width, height):
+    location = str(location or 'center').lower()
+    x_map = {'left': 0.20, 'center': 0.50, 'right': 0.80}
+    y_map = {'top': 0.20, 'center': 0.50, 'bottom': 0.80}
+    cx = x_map['center']
+    cy = y_map['center']
+    for key, value in x_map.items():
+        if key in location: cx = value
+    for key, value in y_map.items():
+        if key in location: cy = value
+    box_w = width * 0.26
+    box_h = height * 0.22
+    x1 = max(0, int(cx * width - box_w / 2))
+    y1 = max(0, int(cy * height - box_h / 2))
+    x2 = min(width - 1, int(cx * width + box_w / 2))
+    y2 = min(height - 1, int(cy * height + box_h / 2))
+    return [x1, y1, x2, y2]
 
 
-def detect_blood(img):
-    """
-    Strict blood detection using multiple filters to eliminate false positives.
-    Blood has specific: color + texture (wet/glossy) + irregular shape + minimum size.
-    """
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    
-    # Much stricter blood color range
-    # Real blood: dark red, high saturation, LOW brightness (not bright red)
-    lower1 = np.array([0,   120, 20])   # was [0, 60, 20]  — raised saturation threshold
-    upper1 = np.array([8,   255, 120])  # was [10, 255, 160] — lowered brightness ceiling
-    lower2 = np.array([168, 120, 20])   # was [160, 60, 20]
-    upper2 = np.array([180, 255, 120])  # was [180, 255, 160]
-    
-    mask1 = cv2.inRange(hsv, lower1, upper1)
-    mask2 = cv2.inRange(hsv, lower2, upper2)
-    mask  = cv2.bitwise_or(mask1, mask2)
-    
-    # Larger morphological kernel to eliminate noise
-    kernel = np.ones((9, 9), np.uint8)
-    mask   = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-    mask   = cv2.morphologyEx(mask, cv2.MORPH_OPEN,  kernel)
-    
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    regions = []
-    for cnt in contours:
-        area = cv2.contourArea(cnt)
-        
-        # Much larger minimum area — ignore tiny specks
-        if area < 5000:  # was 2000 — now 5000px minimum
-            continue
-        
-        x, y, w, h = cv2.boundingRect(cnt)
-        
-        # Shape filter: blood pools are not perfect rectangles
-        # Aspect ratio must not be too extreme (not a thin line/wall edge)
-        aspect = w / max(h, 1)
-        if aspect > 8 or aspect < 0.1:  # skip very thin elongated shapes
-            continue
-        
-        # Irregularity check: blood is irregular, not a clean rectangle
-        rect_area = w * h
-        fill_ratio = area / max(rect_area, 1)
-        if fill_ratio > 0.95:  # perfectly rectangular = likely wall/floor, not blood
-            continue
-        
-        # Darkness check: blood is dark, not bright red
-        region_hsv = hsv[y:y+h, x:x+w]
-        mean_v = np.mean(region_hsv[:,:,2])  # value channel
-        if mean_v > 130:  # too bright to be blood
-            continue
-        
-        regions.append((x, y, x+w, y+h, int(area)))
-    
-    return regions
+def _detection_bbox(det, width, height):
+    bbox = det.get('bbox')
+    if isinstance(bbox, list) and len(bbox) == 4:
+        x1, y1, x2, y2 = [int(v) for v in bbox]
+        x1 = max(0, min(width - 1, x1))
+        y1 = max(0, min(height - 1, y1))
+        x2 = max(0, min(width - 1, x2))
+        y2 = max(0, min(height - 1, y2))
+        if x2 > x1 and y2 > y1:
+            return [x1, y1, x2, y2]
+    return _location_bbox(det.get('location'), width, height)
 
 
-def detect_fingerprints(img):
-    """Detect potential fingerprint regions using texture analysis."""
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+def _make_annotated_image(evidence, analysis_path, detections):
+    from PIL import Image, ImageDraw, ImageFont
+    out_dir = Path(settings.MEDIA_ROOT) / 'results' / 'annotated'
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f'evidence_{evidence.id}_annotated.jpg'
 
-    # Enhance contrast
-    clahe  = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
-    enhanced = clahe.apply(gray)
+    with Image.open(analysis_path) as img:
+        img = img.convert('RGB')
+        draw = ImageDraw.Draw(img)
+        width, height = img.size
+        try:
+            font = ImageFont.truetype('arial.ttf', max(14, int(width * 0.018)))
+        except Exception:
+            font = ImageFont.load_default()
+        for det in detections:
+            color = det.get('color', '#ef4444')
+            bbox  = _detection_bbox(det, width, height)
+            label = _display_label(det.get('label'))
+            conf  = det.get('confidence')
+            text  = f"{label} {int(float(conf)*100)}%" if conf is not None else label
+            x1, y1, x2, y2 = bbox
+            for offset in range(3):
+                draw.rectangle([x1 - offset, y1 - offset, x2 + offset, y2 + offset], outline=color)
+            text_box = draw.textbbox((0, 0), text, font=font)
+            text_w = text_box[2] - text_box[0]
+            text_h = text_box[3] - text_box[1]
+            label_y = max(0, y1 - text_h - 8)
+            draw.rectangle([x1, label_y, x1 + text_w + 10, label_y + text_h + 8], fill=color)
+            draw.text((x1 + 5, label_y + 4), text, fill='white', font=font)
+        img.save(out_path, 'JPEG', quality=92)
 
-    # Gabor filter to detect ridge patterns (fingerprint characteristic)
-    regions = []
-    ksize   = 31
-    for theta in [0, 45, 90, 135]:
-        kernel = cv2.getGaborKernel(
-            (ksize, ksize), sigma=4.0,
-            theta=np.radians(theta),
-            lambd=10.0, gamma=0.5, psi=0
+    return f"{settings.MEDIA_URL}results/annotated/{out_path.name}"
+
+
+def _overall_risk(detections):
+    priority = {'critical': 4, 'high': 3, 'moderate': 2, 'low': 1, 'none': 0}
+    if not detections:
+        return 'none'
+    return max((d['risk_level'] for d in detections), key=lambda r: priority.get(r, 0))
+
+
+def _risk_color(risk):
+    return {
+        'critical': '#8b5cf6',
+        'high':     '#ef4444',
+        'moderate': '#f59e0b',
+        'low':      '#22c55e',
+        'none':     '#6b7280',
+    }.get(risk, '#6b7280')
+
+
+def _save_analysis(evidence):
+    analysis_path = _analysis_path(evidence)
+    analysis = analyze_image(analysis_path)
+    try:
+        analysis['annotated_url'] = _make_annotated_image(
+            evidence, analysis_path, analysis.get('detections', []),
         )
-        filtered = cv2.filter2D(enhanced, cv2.CV_8UC3, kernel)
-        _, thresh = cv2.threshold(filtered, 200, 255, cv2.THRESH_BINARY)
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    except Exception:
+        logger.exception('Annotated image generation failed for evidence_id=%s', evidence.id)
+        analysis['annotated_url'] = evidence.file.url
+    DetectionResult.objects.update_or_create(
+        evidence=evidence,
+        defaults={
+            'detections_json': json.dumps(analysis.get('detections', [])),
+            'scene_summary':   analysis.get('scene_summary', ''),
+            'evidence_count':  analysis.get('evidence_count', 0),
+            'scene_type':      analysis.get('scene_type', 'unknown'),
+            'sources_used':    ','.join(analysis.get('sources_used', [])),
+        },
+    )
+    evidence.status = 'analyzed'
+    evidence.save(update_fields=['status'])
+    return analysis
 
-        for cnt in contours:
-            area = cv2.contourArea(cnt)
-            if 300 < area < 5000:
-                x, y, w, h = cv2.boundingRect(cnt)
-                aspect = w / max(h, 1)
-                if 0.5 < aspect < 2.0:  # roughly square = fingerprint-like
-                    regions.append((x, y, w, h))
 
-    # Deduplicate overlapping regions
-    return regions[:5]  # return top 5 candidates
+def _is_approved(user):
+    """Return True if user is staff or has an approved profile."""
+    if user.is_staff:
+        return True
+    try:
+        return user.profile.is_approved
+    except Exception:
+        return False
 
 
-# ── Django Views ──────────────────────────────────────────────────────────────
-
-def evidence_list(request):
-    return render(request, 'index.html')
+@login_required
+def upload_evidence(request, case_id):
+    if not _is_approved(request.user):
+        return render(request, 'accounts/pending_approval.html')
+    case = _case_for_user(case_id, request.user)
+    if request.method == 'POST':
+        files = request.FILES.getlist('evidence_files')
+        for file in files:
+            evidence = Evidence.objects.create(
+                case=case,
+                uploaded_by=request.user,
+                file=file,
+                original_filename=file.name,
+                file_size=file.size,
+                notes=request.POST.get('notes', ''),
+            )
+            _save_analysis(evidence)
+            log_action(request.user, 'evidence_upload',
+                       target=f'Case #{case.case_number} / {file.name}')
+        return redirect('evidence_list', case_id=case_id)
+    return render(request, 'evidence/upload.html', {'case': case})
 
 
 @csrf_exempt
-def analyze_evidence(request):
-    """Main upload + analyze endpoint."""
-    if request.method != 'POST':
-        return render(request, 'index.html')
+@require_http_methods(['POST'])
+def api_upload_evidence(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({
+            'error': 'Authentication required. Please log in again and retry.',
+            'code':  'authentication_required',
+        }, status=401)
 
-    if 'image' not in request.FILES:
-        return JsonResponse({'error': 'No image uploaded'}, status=400)
+    if not _is_approved(request.user):
+        return JsonResponse({'error': 'Account pending admin approval.'}, status=403)
 
-    img_file = request.FILES['image']
-    case = None
     case_id = request.POST.get('case_id')
-    if case_id:
-        case = get_object_or_404(Case, pk=case_id)
+    image   = request.FILES.get('image') or request.FILES.get('evidence_files')
+    if not case_id:
+        return JsonResponse({'error': 'case_id is required'}, status=400)
+    if not image:
+        return JsonResponse({'error': 'image file is required'}, status=400)
 
-    upload_dir = Path(settings.MEDIA_ROOT) / 'evidence_uploads'
-    upload_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        case = _case_for_user(case_id, request.user)
+    except (Http404, ValueError):
+        return JsonResponse({'error': 'Selected case is not available for upload.'}, status=404)
 
-    save_path = upload_dir / default_storage.get_available_name(img_file.name)
-    with open(save_path, 'wb+') as f:
-        for chunk in img_file.chunks():
-            f.write(chunk)
-
-    # Run analysis
-    mode = request.POST.get('mode', 'yolo_plus_heuristics')
-    analysis = analyze_image(save_path, mode=mode)
-
-    if 'error' in analysis:
-        return JsonResponse({'error': analysis['error']}, status=400)
-
-    # Save to database
-    from .models import Evidence
-    evidence_obj = Evidence.objects.create(
+    evidence = Evidence.objects.create(
         case=case,
-        image=f'evidence_uploads/{save_path.name}',
-        detections=json.dumps(analysis['detections']),
-        threat_level=analysis['threat_level'],
-        summary=json.dumps(analysis.get('summary', {})),
+        uploaded_by=request.user,
+        file=image,
+        original_filename=image.name,
+        file_size=image.size,
         notes=request.POST.get('notes', ''),
     )
 
-    risk_map = {
-        'LOW': ('low', '#22c55e'),
-        'MEDIUM': ('moderate', '#f59e0b'),
-        'HIGH': ('high', '#ef4444'),
-    }
-    overall_risk, risk_color = risk_map.get(analysis['threat_level'], ('low', '#22c55e'))
-    danger_found = any(d.get('type') == 'weapon' for d in analysis['detections'])
-    frontend_detections = []
-    for detection in analysis['detections']:
-        confidence = float(detection.get('confidence', 0))
-        is_weapon = detection.get('type') == 'weapon'
-        frontend_detections.append({
-            **detection,
-            # normalized for consistent UI logic
-            'class_name': detection.get('class', 'unknown'),
-            # raw YOLO name (when YOLO-produced); heuristics do not have raw names
-            'class_name_raw': detection.get('class_raw', detection.get('class', 'unknown')),
-            'confidence_pct': round(confidence * 100, 1),
-            'risk_level': 'high' if is_weapon else 'moderate' if detection.get('type') == 'trace' else 'low',
-        })
+    try:
+        analysis = _save_analysis(evidence)
+    except Exception as exc:
+        logger.exception('Evidence detection failed for evidence_id=%s', evidence.id)
+        return JsonResponse({
+            'error':       'Detection failed on the server.',
+            'detail':      str(exc),
+            'evidence_id': evidence.id,
+        }, status=500)
 
+    log_action(request.user, 'evidence_upload',
+               target=f'Case #{case.case_number} / {image.name}')
 
+    dashboard_detections = [_dashboard_detection(d) for d in analysis.get('detections', [])]
+    risk = _overall_risk(dashboard_detections)
     return JsonResponse({
-        'id':             evidence_obj.id,
-        'case_id':        case.id if case else None,
-        'detections':     frontend_detections,
-        'threat_level':   analysis['threat_level'],
-        'overall_risk':   overall_risk,
-        'risk_color':     risk_color,
-        'weapons_found':  danger_found,
-        'summary':        analysis['summary'],
-        'annotated_image': analysis.get('annotated_image'),
-        'annotated_url':  f"{settings.MEDIA_URL}evidence_uploads/{analysis.get('annotated_image')}" if analysis.get('annotated_image') else None,
-        'total_found':    len(analysis['detections']),
-        'total_objects':  len(analysis['detections']),
+        'id':              evidence.id,
+        'evidence_id':     evidence.id,
+        'filename':        evidence.original_filename,
+        'image_url':       evidence.file.url,
+        'annotated_url':   analysis.get('annotated_url', evidence.file.url),
+        'detections':      dashboard_detections,
+        'raw_detections':  analysis.get('detections', []),
+        'total_objects':   len(dashboard_detections),
+        'weapons_found':   any(d['risk_level'] in {'high', 'critical'} for d in dashboard_detections),
+        'overall_risk':    risk,
+        'risk_color':      _risk_color(risk),
+        'scene_summary':   analysis.get('scene_summary', ''),
+        'sources_used':    analysis.get('sources_used', []),
     })
 
 
-def evidence_detail(request, pk):
-    from .models import Evidence
-    obj = get_object_or_404(Evidence, pk=pk)
-    return JsonResponse({
-        'id': obj.id,
-        'case_id': obj.case_id,
-        'image': obj.image.url if obj.image else None,
-        'detections': obj.get_detections(),
-        'summary': obj.get_summary(),
-        'threat_level': obj.threat_level,
-        'analyzed_at': obj.analyzed_at.isoformat(),
+@login_required
+def evidence_list(request, case_id):
+    if not _is_approved(request.user):
+        return render(request, 'accounts/pending_approval.html')
+    case = _case_for_user(case_id, request.user)
+    evidence_items = Evidence.objects.filter(case=case).order_by('-analyzed_at')
+    for ev in evidence_items:
+        try:
+            dr = ev.detectionresult
+            ev.detections    = json.loads(dr.detections_json)
+            ev.scene_summary = dr.scene_summary
+            ev.evidence_count = dr.evidence_count
+        except DetectionResult.DoesNotExist:
+            ev.detections    = []
+            ev.scene_summary = ''
+            ev.evidence_count = 0
+    return render(request, 'evidence/list.html', {'case': case, 'evidence_items': evidence_items})
+
+
+@login_required
+def evidence_detail(request, evidence_id):
+    if not _is_approved(request.user):
+        return render(request, 'accounts/pending_approval.html')
+    if request.user.is_staff:
+        evidence = get_object_or_404(Evidence, id=evidence_id)
+    else:
+        evidence = get_object_or_404(
+            Evidence, id=evidence_id,
+            case__in=__import__('cases.models', fromlist=['Case']).Case.objects.filter(
+                Q(created_by=request.user) | Q(assigned_to=request.user)
+            )
+        )
+    try:
+        dr = evidence.detectionresult
+        detections   = json.loads(dr.detections_json)
+        scene_summary = dr.scene_summary
+        sources_used  = [s for s in dr.sources_used.split(',') if s]
+    except DetectionResult.DoesNotExist:
+        detections   = []
+        scene_summary = ''
+        sources_used  = []
+    return render(request, 'evidence/detail.html', {
+        'evidence':       evidence,
+        'detections':     detections,
+        'detections_json': json.dumps(detections),
+        'scene_summary':  scene_summary,
+        'sources_used':   sources_used,
     })
+
+
+@login_required
+@require_http_methods(['POST'])
+def reanalyze_evidence(request, evidence_id):
+    if not _is_approved(request.user):
+        return JsonResponse({'error': 'Account pending approval'}, status=403)
+    if request.user.is_staff:
+        evidence = get_object_or_404(Evidence, id=evidence_id)
+    else:
+        evidence = get_object_or_404(Evidence, id=evidence_id, case__created_by=request.user)
+    analysis = _save_analysis(evidence)
+    log_action(request.user, 'analysis_run',
+               target=f'Evidence #{evidence_id}')
+    return JsonResponse({
+        'status':         'ok',
+        'detections':     analysis.get('detections', []),
+        'scene_summary':  analysis.get('scene_summary', ''),
+        'evidence_count': analysis.get('evidence_count', 0),
+        'sources_used':   analysis.get('sources_used', []),
+    })
+
+
+@login_required
+@require_http_methods(['POST'])
+def delete_evidence(request, evidence_id):
+    if not _is_approved(request.user):
+        return JsonResponse({'error': 'Account pending approval'}, status=403)
+    if request.user.is_staff:
+        evidence = get_object_or_404(Evidence, id=evidence_id)
+    else:
+        evidence = get_object_or_404(Evidence, id=evidence_id, case__created_by=request.user)
+    case_id = evidence.case.id
+    fn = evidence.original_filename
+    if evidence.file and os.path.exists(evidence.file.path):
+        os.remove(evidence.file.path)
+    evidence.delete()
+    log_action(request.user, 'evidence_delete', target=fn)
+    return redirect('evidence_list', case_id=case_id)

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audit Log – Forensic 3D Admin</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0d1117; color: #e6edf3; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+  nav {
+    background: #161b22;
+    border-bottom: 1px solid #21262d;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    height: 56px;
+  }
+  .nav-brand { color: #3b82f6; font-weight: 700; font-size: 1.1rem; letter-spacing: 1px; text-decoration: none; }
+  .nav-links { display: flex; gap: 20px; margin-left: auto; }
+  .nav-links a { color: #8b949e; text-decoration: none; font-size: .88rem; }
+  .nav-links a:hover { color: #e6edf3; }
+  .main { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+  h1 { font-size: 1.4rem; margin-bottom: 20px; }
+  .search { margin-bottom: 16px; }
+  .search input {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 8px 14px;
+    color: #e6edf3;
+    font-size: .88rem;
+    width: 300px;
+    outline: none;
+  }
+  .search input:focus { border-color: #3b82f6; }
+  table { width: 100%; border-collapse: collapse; background: #161b22; border-radius: 10px; overflow: hidden; }
+  th { background: #1c2128; color: #8b949e; font-size: .75rem; text-transform: uppercase; letter-spacing: .5px; padding: 10px 14px; text-align: left; }
+  td { padding: 10px 14px; border-top: 1px solid #21262d; font-size: .82rem; color: #8b949e; }
+  td:first-child { color: #e6edf3; }
+  tr:hover td { background: rgba(59,130,246,.04); }
+  .action-login    { color: #22c55e; }
+  .action-logout   { color: #8b949e; }
+  .action-register { color: #3b82f6; }
+  .action-approved { color: #22c55e; font-weight: 600; }
+  .action-delete   { color: #ef4444; }
+  .action-upload   { color: #f59e0b; }
+  .action-default  { color: #8b5cf6; }
+</style>
+</head>
+<body>
+<nav>
+  <a class="nav-brand" href="/">FORENSIC 3D</a>
+  <div class="nav-links">
+    <a href="/">Dashboard</a>
+    <a href="{% url 'admin_users' %}">Users</a>
+    <a href="{% url 'admin_audit_log' %}" style="color:#e6edf3">Audit Log</a>
+    <a href="{% url 'logout' %}">Sign Out</a>
+  </div>
+</nav>
+
+<div class="main">
+  <h1>System Audit Log</h1>
+  <div class="search">
+    <input type="text" id="search" placeholder="Filter by user, action, or target…">
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Timestamp</th>
+        <th>User</th>
+        <th>Action</th>
+        <th>Target</th>
+        <th>IP Address</th>
+        <th>Details</th>
+      </tr>
+    </thead>
+    <tbody id="auditTable">
+      {% for entry in entries %}
+      <tr data-search="{{ entry.user.username|lower|default:'' }} {{ entry.action|lower }} {{ entry.target|lower }}">
+        <td>{{ entry.timestamp|date:"Y-m-d H:i:s" }}</td>
+        <td>{{ entry.user.username|default:'—' }}</td>
+        <td>
+          {% if entry.action == 'login' %}<span class="action-login">Login</span>
+          {% elif entry.action == 'logout' %}<span class="action-logout">Logout</span>
+          {% elif entry.action == 'register' %}<span class="action-register">Registered</span>
+          {% elif entry.action == 'approved' %}<span class="action-approved">Approved</span>
+          {% elif entry.action == 'evidence_delete' or entry.action == 'case_deleted' %}<span class="action-delete">{{ entry.get_action_display }}</span>
+          {% elif entry.action == 'evidence_upload' %}<span class="action-upload">{{ entry.get_action_display }}</span>
+          {% else %}<span class="action-default">{{ entry.get_action_display }}</span>
+          {% endif %}
+        </td>
+        <td>{{ entry.target|default:'—' }}</td>
+        <td>{{ entry.ip_address|default:'—' }}</td>
+        <td>{{ entry.details|default:'—' }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" style="text-align:center;padding:40px;color:#8b949e;">No audit entries yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+  document.getElementById('search').addEventListener('input', function () {
+    const q = this.value.toLowerCase();
+    document.querySelectorAll('#auditTable tr').forEach(row => {
+      row.style.display = (row.getAttribute('data-search') || '').includes(q) ? '' : 'none';
+    });
+  });
+</script>
+</body>
+</html>

@@ -48,7 +48,7 @@ class Case(models.Model):
         return f"Case #{self.case_number} — {self.title}"
 
     def evidence_count(self):
-        return self.evidence_set.count()
+        return self.evidence_items.count()
 
     def get_priority_color(self):
         return {
@@ -57,3 +57,24 @@ class Case(models.Model):
             'high':     '#f59e0b',
             'critical': '#ef4444',
         }.get(self.priority, '#6b7280')
+
+
+class SystemService(models.Model):
+    SERVICE_TYPE_CHOICES = [
+        ('ai_analysis', 'AI Analysis'),
+        ('visualization', 'Visualization'),
+    ]
+
+    name = models.CharField(max_length=100, unique=True)
+    service_type = models.CharField(max_length=30, choices=SERVICE_TYPE_CHOICES)
+    is_enabled = models.BooleanField(default=True)
+    config = models.JSONField(blank=True, default=dict)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name

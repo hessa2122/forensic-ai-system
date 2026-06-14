@@ -2,10 +2,23 @@
 from . import views
 
 urlpatterns = [
-    path('reconstruct/',                    views.reconstruct_direct,          name='reconstruct'),
-    path('reconstruct/<int:evidence_id>/',  views.reconstruct_from_evidence,   name='reconstruct-from-evidence'),
-    path('reconstructions/',                views.reconstruction_list,         name='reconstruction-list'),
-    path('reconstruction-data/<int:scene_id>/', views.point_cloud_data,         name='reconstruction-data'),
-    path('scene/<int:scene_id>/',           views.scene_viewer,                name='scene-viewer'),
-    path('scene/',                          views.scene_viewer,                name='scene-viewer-new'),
+    path('reconstruct/',
+         views.reconstruct_api,
+         name='reconstruct_api'),
+
+    path('reconstructions/',
+         views.reconstructions_api,
+         name='reconstructions_api'),
+
+    path('reconstruction-data/<int:scene_id>/',
+         views.reconstruction_scene_data_api,
+         name='reconstruction_scene_data_api'),
+
+    path('<int:evidence_id>/',
+         views.reconstruction_view,
+         name='reconstruction_view'),
+
+    path('<int:evidence_id>/data/',
+         views.reconstruction_data_api,
+         name='reconstruction_data'),
 ]

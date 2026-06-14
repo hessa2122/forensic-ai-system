@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Evidence - {{ case.case_number }}</title>
+<style>
+  :root{--bg:#0d1117;--surface:#161b22;--surface2:#1c2128;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#3b82f6;--red:#ef4444;--amber:#f59e0b;--green:#22c55e}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,system-ui,sans-serif;min-height:100vh}
+  .nav{height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(22,27,34,.96);border-bottom:1px solid #21262d}
+  .brand{font-weight:800}.brand span{color:var(--accent)}.nav a{color:#93c5fd;text-decoration:none;font-size:13px}
+  .wrap{max-width:1180px;margin:0 auto;padding:30px 20px}.hero{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:20px}
+  h1{font-size:28px;margin:0 0 6px}.sub{color:var(--muted);font-size:14px}.btn{border-radius:7px;padding:10px 16px;font-weight:800;text-decoration:none;display:inline-flex;align-items:center;gap:8px}.primary{background:var(--accent);color:white}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}.card{background:var(--surface);border:1px solid #21262d;border-radius:8px;overflow:hidden}
+  .thumb{aspect-ratio:16/10;background:#050a0f}.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .body{padding:15px}.name{font-weight:800;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.meta{color:var(--muted);font-size:12px;margin-bottom:12px}
+  .summary{color:#cbd5e1;font-size:13px;line-height:1.45;min-height:38px}.chips{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.chip{font-size:11px;border:1px solid var(--border);border-radius:999px;padding:3px 8px;color:var(--muted)}
+  .actions{display:flex;gap:8px;border-top:1px solid #21262d;padding:12px 15px}.ghost{color:var(--text);border:1px solid var(--border);background:transparent}.empty{padding:60px 20px;text-align:center;background:var(--surface);border:1px solid #21262d;border-radius:8px}.empty p{color:var(--muted)}
+  @media(max-width:720px){.hero{flex-direction:column;align-items:stretch}}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="brand">Forensic<span>AI</span></div>
+  <a href="/">Dashboard</a>
+</nav>
+<main class="wrap">
+  <section class="hero">
+    <div>
+      <h1>{{ case.case_number }} Evidence</h1>
+      <div class="sub">{{ case.title }}{% if case.location %} - {{ case.location }}{% endif %}</div>
+    </div>
+    <a class="btn primary" href="{% url 'upload_evidence' case.id %}">Upload Evidence</a>
+  </section>
+  {% if evidence_items %}
+    <div class="grid">
+      {% for ev in evidence_items %}
+      <article class="card">
+        <div class="thumb">{% if ev.file %}<img src="{{ ev.file.url }}" alt="{{ ev.original_filename }}">{% endif %}</div>
+        <div class="body">
+          <div class="name">{{ ev.original_filename }}</div>
+          <div class="meta">{{ ev.analyzed_at|date:"M d, Y H:i" }} - {{ ev.evidence_count }} detections</div>
+          <div class="summary">{{ ev.scene_summary|default:"No analysis summary available." }}</div>
+          <div class="chips">
+            {% for det in ev.detections|slice:":4" %}
+              <span class="chip">{{ det.label }}</span>
+            {% empty %}
+              <span class="chip">No detections</span>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="actions">
+          <a class="btn ghost" href="{% url 'evidence_detail' ev.id %}">Review</a>
+          <a class="btn ghost" href="{% url 'reconstruction_view' ev.id %}">3D View</a>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty">
+      <h2>No evidence uploaded yet</h2>
+      <p>Start by adding image evidence to run detection and reconstruction.</p>
+      <a class="btn primary" href="{% url 'upload_evidence' case.id %}">Upload First Evidence</a>
+    </div>
+  {% endif %}
+</main>
+</body>
+</html>

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Evidence - {{ evidence.original_filename }}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; min-height: 100vh; }
+  .nav { background: #111827; border-bottom: 1px solid #1f2937; padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
+  .nav a { color: #60a5fa; text-decoration: none; font-size: 13px; }
+  .nav h1 { font-size: 14px; font-weight: 600; color: #f1f5f9; }
+  .page { display: grid; grid-template-columns: 1fr 360px; gap: 20px; padding: 20px; max-width: 1400px; margin: 0 auto; }
+  .img-panel { background: #111827; border: 1px solid #1f2937; border-radius: 10px; overflow: hidden; }
+  .img-panel .img-wrap { position: relative; display: inline-block; width: 100%; }
+  .img-panel img { width: 100%; display: block; }
+  .bbox-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  .bbox-rect { fill: none; stroke-width: 2; rx: 3; }
+  .bbox-label { font-size: 11px; font-weight: 700; paint-order: stroke; stroke-width: 3; stroke-linejoin: round; }
+  .img-actions { padding: 12px 16px; display: flex; gap: 8px; border-top: 1px solid #1f2937; flex-wrap: wrap; }
+  .btn { padding: 7px 14px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
+  .btn-primary { background: #3b82f6; color: white; }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-secondary { background: #1f2937; color: #94a3b8; border: 1px solid #374151; }
+  .btn-secondary:hover { background: #374151; color: #f1f5f9; }
+  .btn-danger { background: #7f1d1d; color: #fca5a5; border: 1px solid #991b1b; }
+  .btn-danger:hover { background: #991b1b; }
+  .det-panel { display: flex; flex-direction: column; gap: 12px; }
+  .det-panel h2 { font-size: 13px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+  .det-card { background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 12px 14px; cursor: pointer; transition: all 0.15s; border-left: 3px solid var(--clr, #6b7280); }
+  .det-card:hover { background: #1a2332; }
+  .det-card.active { background: #1a2332; border-color: var(--clr, #3b82f6); }
+  .det-card .label { font-size: 13px; font-weight: 700; color: var(--clr, #e2e8f0); text-transform: capitalize; }
+  .det-card .conf { font-size: 11px; color: #6b7280; margin-top: 2px; }
+  .det-card .sig { font-size: 10px; margin-top: 3px; font-weight: 600; }
+  .det-card .sig.high   { color: #f87171; }
+  .det-card .sig.medium { color: #fbbf24; }
+  .det-card .sig.low    { color: #6b7280; }
+  .det-card .desc { font-size: 11px; color: #9ca3af; margin-top: 5px; line-height: 1.4; }
+  .det-card .notes { font-size: 10px; color: #6b7280; margin-top: 4px; font-style: italic; }
+  .det-card .src { font-size: 10px; color: #4b5563; margin-top: 3px; }
+  .scene-box { background: #0f1923; border: 1px solid #1f2937; border-radius: 8px; padding: 14px; font-size: 12px; color: #6b7280; line-height: 1.6; }
+  .scene-box strong { color: #94a3b8; display: block; margin-bottom: 4px; }
+  .no-det { text-align: center; padding: 24px; color: #4b5563; font-size: 13px; }
+  .spinner { display: none; width: 16px; height: 16px; border: 2px solid #374151; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .sources-bar { display: flex; gap: 6px; flex-wrap: wrap; }
+  .src-badge { font-size: 10px; padding: 2px 8px; border-radius: 99px; background: #1e3a5f; color: #60a5fa; }
+</style>
+</head>
+<body>
+<nav class="nav">
+  <a href="{% url 'evidence_list' evidence.case.id %}">Back to Case</a>
+  <h1>{{ evidence.original_filename }}</h1>
+  <span style="color:#4b5563;font-size:12px;">{{ evidence.created_at|date:"M d, Y H:i" }}</span>
+</nav>
+<div class="page">
+  <div class="img-panel">
+    <div class="img-wrap" id="img-wrap">
+      <img src="{{ evidence.file.url }}" id="ev-image" alt="{{ evidence.original_filename }}" onload="drawBboxes()">
+      <svg class="bbox-overlay" id="bbox-svg" viewBox="0 0 1 1" preserveAspectRatio="none"></svg>
+    </div>
+    <div class="img-actions">
+      <a href="{% url 'reconstruction_view' evidence.id %}" class="btn btn-primary">View in 3D</a>
+      <button class="btn btn-secondary" id="btn-reanalyze"><span class="spinner" id="spin"></span>Re-analyze</button>
+      <a href="{{ evidence.file.url }}" download class="btn btn-secondary">Download</a>
+      <form method="post" action="{% url 'delete_evidence' evidence.id %}" style="margin-left:auto" onsubmit="return confirm('Delete this evidence?')">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Delete</button>
+      </form>
+    </div>
+  </div>
+  <div class="det-panel">
+    <div>
+      <h2>Detections <span style="color:#3b82f6">({{ detections|length }})</span></h2>
+      {% if detections %}
+        <div class="sources-bar" style="margin-top:6px">
+          {% for s in sources_used %}<span class="src-badge">{{ s }}</span>{% endfor %}
+        </div>
+      {% endif %}
+    </div>
+    {% if scene_summary %}
+    <div class="scene-box">
+      <strong>Scene Summary</strong>
+      {{ scene_summary }}
+    </div>
+    {% endif %}
+    <div id="det-list">
+      {% if detections %}
+        {% for det in detections %}
+        <div class="det-card" style="--clr: {{ det.color }}" data-index="{{ forloop.counter0 }}" onclick="highlightDetection({{ forloop.counter0 }})">
+          <div class="label">{{ det.label }}</div>
+          <div class="conf">
+            {% if det.confidence %}{% widthratio det.confidence 1 100 %}% confidence{% endif %}
+            {% if det.location %} - {{ det.location }}{% endif %}
+          </div>
+          <div class="sig {{ det.forensic_significance }}">{{ det.forensic_significance|upper }} significance</div>
+          {% if det.description %}<div class="desc">{{ det.description }}</div>{% endif %}
+          {% if det.notes %}<div class="notes">{{ det.notes }}</div>{% endif %}
+          <div class="src">Source: {{ det.source }}</div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="no-det">
+          <div style="font-size:32px;margin-bottom:8px">Search</div>
+          No detections yet.<br>Click Re-analyze to run the AI pipeline.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+<script>
+const DETECTIONS = {{ detections_json|safe }};
+let naturalW = 0, naturalH = 0;
+let activeIndex = null;
+
+function drawBboxes() {
+  const img = document.getElementById('ev-image');
+  naturalW = img.naturalWidth;
+  naturalH = img.naturalHeight;
+  const svg = document.getElementById('bbox-svg');
+  svg.setAttribute('viewBox', `0 0 ${naturalW} ${naturalH}`);
+  svg.innerHTML = '';
+  DETECTIONS.forEach((det, i) => {
+    if (!det.bbox) return;
+    const [x1, y1, x2, y2] = det.bbox;
+    const color = det.color || '#6b7280';
+    const w = x2 - x1, h = y2 - y1;
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', x1); rect.setAttribute('y', y1);
+    rect.setAttribute('width', w); rect.setAttribute('height', h);
+    rect.setAttribute('stroke', color); rect.setAttribute('fill', color + '20');
+    rect.setAttribute('stroke-width', '2'); rect.setAttribute('rx', '3');
+    rect.classList.add('bbox-rect');
+    rect.dataset.index = i;
+    rect.style.cursor = 'pointer';
+    rect.addEventListener('click', () => highlightDetection(i));
+    svg.appendChild(rect);
+    const conf = det.confidence ? ` ${Math.round(det.confidence * 100)}%` : '';
+    const txt = `${det.label}${conf}`;
+    const lblH = 18, lblW = txt.length * 7 + 8;
+    const lblY = y1 > lblH ? y1 - lblH : y1 + h;
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('x', x1); bg.setAttribute('y', lblY);
+    bg.setAttribute('width', lblW); bg.setAttribute('height', lblH);
+    bg.setAttribute('fill', color); bg.setAttribute('rx', '3');
+    svg.appendChild(bg);
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', x1 + 4); text.setAttribute('y', lblY + 12);
+    text.setAttribute('fill', 'white'); text.setAttribute('font-size', '11');
+    text.setAttribute('font-weight', '700'); text.setAttribute('font-family', 'system-ui');
+    text.textContent = txt;
+    svg.appendChild(text);
+  });
+}
+
+function highlightDetection(index) {
+  if (activeIndex !== null) {
+    const prev = document.querySelector(`.det-card[data-index="${activeIndex}"]`);
+    if (prev) prev.classList.remove('active');
+    const prevRect = document.querySelector(`rect.bbox-rect[data-index="${activeIndex}"]`);
+    if (prevRect) prevRect.setAttribute('stroke-width', '2');
+  }
+  activeIndex = index;
+  const card = document.querySelector(`.det-card[data-index="${index}"]`);
+  if (card) { card.classList.add('active'); card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+  const rect = document.querySelector(`rect.bbox-rect[data-index="${index}"]`);
+  if (rect) rect.setAttribute('stroke-width', '4');
+}
+
+document.getElementById('btn-reanalyze').addEventListener('click', async function() {
+  const spin = document.getElementById('spin');
+  this.disabled = true;
+  spin.style.display = 'inline-block';
+  try {
+    const resp = await fetch("{% url 'reanalyze_evidence' evidence.id %}", {
+      method: 'POST',
+      headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+    });
+    const data = await resp.json();
+    if (data.status === 'ok') {
+      window.location.reload();
+    }
+  } catch (e) {
+    alert('Re-analysis failed. Check API keys in .env file.');
+  } finally {
+    this.disabled = false;
+    spin.style.display = 'none';
+  }
+});
+</script>
+</body>
+</html>

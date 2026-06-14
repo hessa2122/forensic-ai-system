@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>ForensicAI — Crime Scene Analysis System</title>
+<title>ForensicAI â€” Crime Scene Analysis System</title>
 {% load static %}
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
@@ -11,7 +11,99 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/PLYLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/PLYLoader.js"></script>
 <style>
+
+
+/* SIDEBAR SAME MODEL */
+.sidebar {
+  width: 240px;
+  background: #161b22;
+  border-right: 1px solid #21262d;
+  padding: 1rem;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.sidebar-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: #6e7681;
+  margin: 1rem 0 .45rem .5rem;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: .55rem .75rem;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #8b949e;
+  transition: all .18s ease;
+  margin-bottom: 4px;
+}
+
+.sidebar-item:hover {
+  background: #21262d;
+  color: #e6edf3;
+}
+
+.sidebar-item.active {
+  background: rgba(59,130,246,.14);
+  color: #3b82f6;
+  border: 1px solid rgba(59,130,246,.28);
+}
+
+.side-icon {
+  width: 18px;
+  display: inline-flex;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.model-box {
+  padding: .55rem .75rem;
+  font-size: 12px;
+  color: #8b949e;
+}
+
+.model-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: .35rem;
+  color: #8b949e;
+}
+
+.model-dot {
+  width: 10px;
+  height: 10px;
+  background: #22c55e;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.model-info {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  margin-bottom: .25rem;
+  color: #8b949e;
+}
+
+.model-classes {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  color: #6e7681;
+}
+  
+
 :root{
   --bg:#0d1117;--surface:#161b22;--surface2:#1c2128;
   --border:#21262d;--border2:#30363d;
@@ -101,6 +193,44 @@ input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 
 .btn-green:hover{background:rgba(34,197,94,.25)}
 .btn-full{width:100%;justify-content:center}
 
+.top-login-btn,
+.top-logout-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 15px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  font-family: var(--mono);
+  transition: all .2s ease;
+}
+
+.top-login-btn {
+  background: rgba(59,130,246,.12);
+  color: #60a5fa;
+  border: 1px solid rgba(59,130,246,.35);
+}
+
+.top-login-btn:hover {
+  background: rgba(59,130,246,.22);
+  color: #93c5fd;
+}
+
+.top-logout-btn {
+  background: rgba(239,68,68,.12);
+  color: #f87171;
+  border: 1px solid rgba(239,68,68,.35);
+}
+
+.top-logout-btn:hover {
+  background: rgba(239,68,68,.22);
+  color: #fca5a5;
+}
+
 /* RISK BADGES */
 .risk-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em}
 .risk-none    {background:rgba(107,114,128,.12);color:#9ca3af;  border:1px solid rgba(107,114,128,.25)}
@@ -142,6 +272,21 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .viewer-btn{background:rgba(255,255,255,.1);border:none;color:#fff;padding:.3rem .7rem;border-radius:12px;font-size:11px;cursor:pointer;transition:background .15s}
 .viewer-btn:hover{background:rgba(255,255,255,.2)}
 .viewer-label{position:absolute;top:.75rem;left:.75rem;font-size:11px;color:rgba(255,255,255,.6);font-family:var(--mono);background:rgba(0,0,0,.5);padding:3px 8px;border-radius:6px}
+.object-summary{margin-top:.75rem;border-top:1px solid var(--border);padding-top:.75rem}
+.object-summary-title{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;font-weight:600}
+.scene-object-list{display:flex;flex-direction:column;gap:.45rem;max-height:220px;overflow:auto;padding-right:2px}
+.scene-object-row{width:100%;display:grid;grid-template-columns:auto 1fr auto;gap:.55rem;align-items:center;text-align:left;background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--obj-color,#3b82f6);color:var(--text);border-radius:8px;padding:.55rem .6rem;cursor:pointer;transition:all .15s}
+.scene-object-row:hover,.scene-object-row.active{border-color:var(--obj-color,#3b82f6);background:rgba(255,255,255,.04)}
+.scene-object-num{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--obj-color,#3b82f6);color:#fff;font-size:11px;font-family:var(--mono);font-weight:700}
+.scene-object-name{font-size:12px;font-weight:600;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scene-object-meta{font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scene-object-conf{font-size:11px;font-family:var(--mono);color:var(--obj-color,#3b82f6)}
+.forensic-notice{margin-top:.75rem;background:#111827;border:1px solid var(--border);border-left:3px solid var(--amber);border-radius:8px;padding:.7rem;font-size:12px;color:var(--muted);line-height:1.55}
+.forensic-notice strong{display:block;color:var(--text);font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.35rem}
+.provenance-grid{display:grid;gap:.4rem;margin-top:.65rem;font-size:12px}
+.provenance-row{display:flex;justify-content:space-between;gap:.75rem;border-bottom:1px solid var(--border);padding-bottom:.35rem}
+.provenance-row span:first-child{color:var(--muted)}
+.provenance-row span:last-child{font-family:var(--mono);text-align:right;color:var(--text);word-break:break-all}
 
 /* TOAST */
 .toast{position:fixed;bottom:1.5rem;right:1.5rem;padding:.85rem 1.25rem;border-radius:9px;font-size:13px;font-weight:500;z-index:999;transform:translateY(80px);opacity:0;transition:all .3s;max-width:320px}
@@ -163,10 +308,11 @@ tr:hover td{background:rgba(255,255,255,.02)}
 </head>
 <body>
 
+
 <!-- NAV -->
 <nav>
   <div class="logo">
-    <div class="logo-icon">🔍</div>
+    <div class="logo-icon">ðŸ”</div>
     ForensicAI
     <span class="nav-badge">RESTRICTED</span>
   </div>
@@ -177,82 +323,144 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div class="nav-link" onclick="showPage('reconstruct')">3D Scene</div>
   </div>
   <div class="nav-right">
-    <div class="nav-status"><span class="status-dot"></span>System Online</div>
-    <a href="/logout/" style="
-        display:inline-flex;align-items:center;gap:6px;
-        padding:5px 14px;border-radius:6px;
-        background:rgba(239,68,68,.1);
-        color:#f87171;
-        border:1px solid rgba(239,68,68,.25);
-        font-size:12px;font-weight:600;
-        text-decoration:none;
-        transition:all .15s;
-    " onmouseover="this.style.background='rgba(239,68,68,.2)'"
-       onmouseout="this.style.background='rgba(239,68,68,.1)'">
-        ⏻ Logout
+
+  {% if request.user.is_authenticated %}
+
+    <div class="nav-status">
+      <span class="status-dot"></span>
+
+      {% if request.user.is_staff or request.user.is_superuser %}
+        Admin:
+      {% else %}
+        User:
+      {% endif %}
+
+      {% if request.user.get_full_name %}
+        {{ request.user.get_full_name }}
+      {% else %}
+        {{ request.user.username }}
+      {% endif %}
+    </div>
+
+    <form action="{% url 'logout' %}" method="post" style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" class="top-logout-btn">
+        Logout
+      </button>
+    </form>
+
+  {% else %}
+
+    <div class="nav-status">
+      <span class="status-dot"></span>
+      Guest
+    </div>
+
+    <a href="{% url 'login' %}" class="top-login-btn">
+      Login
     </a>
-</div>
-</nav>
+
+  {% endif %}
+
+</div></nav>
 
 <div class="app">
 
 <!-- SIDEBAR -->
+<!-- SIDEBAR -->
 <div class="sidebar">
+
   <div class="sidebar-label">Navigation</div>
-  <div class="sidebar-item active" onclick="showPage('dashboard')">📊 Dashboard</div>
-  <div class="sidebar-item" onclick="showPage('cases')">📁 All Cases</div>
-  <div class="sidebar-item" onclick="showPage('analyze')">🔍 Analyze Evidence</div>
-  <div class="sidebar-item" onclick="showPage('reconstruct')">🧊 3D Reconstruction</div>
 
-  <div class="sidebar-label" style="margin-top:1.5rem">Quick Actions</div>
-  <div class="sidebar-item" onclick="showPage('cases');openNewCase()">➕ New Case</div>
-  <div class="sidebar-item" onclick="showPage('analyze')">📤 Upload Evidence</div>
+  <div class="sidebar-item active" onclick="showPage('dashboard')">
+    <span class="side-icon">📊</span>
+    Dashboard
+  </div>
 
-  <div class="sidebar-label" style="margin-top:1.5rem">Detection Model</div>
-  <div style="padding:.5rem .75rem;font-size:12px;color:var(--muted)">
-    <div style="margin-bottom:.3rem">🟢 forensic_best_v2.pt</div>
-    <div style="font-family:var(--mono);font-size:11px">Classes: 8</div>
-    <div style="font-family:var(--mono);font-size:10px;margin-top:.2rem;color:var(--muted2)">
-      Gun &middot; Knife &middot; Grenade<br>Pistol &middot; Rifle &middot; Blood<br>Fingerprint &middot; Shell Casing
+  <div class="sidebar-item" onclick="showPage('cases')">
+    <span class="side-icon">📁</span>
+    All Cases
+  </div>
+
+  <div class="sidebar-item" onclick="showPage('analyze')">
+    <span class="side-icon">🔍</span>
+    Analyze Evidence
+  </div>
+
+  <div class="sidebar-item" onclick="showPage('reconstruct')">
+    <span class="side-icon">🧊</span>
+    3D Reconstruction
+  </div>
+
+
+  <div class="sidebar-label" style="margin-top:1.7rem;">Quick Actions</div>
+
+  <div class="sidebar-item" onclick="showPage('cases'); openNewCase();">
+    <span class="side-icon">＋</span>
+    New Case
+  </div>
+
+  <div class="sidebar-item" onclick="showPage('analyze')">
+    <span class="side-icon">📤</span>
+    Upload Evidence
+  </div>
+
+
+  <div class="sidebar-label" style="margin-top:1.7rem;">Detection Model</div>
+
+  <div class="model-box">
+    <div class="model-status">
+      <span class="model-dot"></span>
+      forensic_best_v2.pt
+    </div>
+
+    <div class="model-info">
+      Classes: 8
+    </div>
+
+    <div class="model-classes">
+      Gun · Knife · Grenade<br>
+      Pistol · Rifle · Blood<br>
+      Fingerprint · Shell Casing
     </div>
   </div>
-</div>
 
+</div>
 <!-- MAIN CONTENT -->
 <div class="main">
 
-  <!-- ── DASHBOARD ─────────────────────────────────────────── -->
+  <!-- â”€â”€ DASHBOARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div id="page-dashboard" class="page-section active">
     <div class="section-header">
       <div>
         <div class="section-title">Forensic Command Center</div>
         <div class="section-sub">Real-time evidence analysis and case management</div>
       </div>
-      <button class="btn btn-ghost" onclick="loadDashboard()">↻ Refresh</button>
+      <button class="btn btn-ghost" onclick="loadDashboard()"> Refresh</button>
     </div>
 
     <div class="stats-grid">
-      <div class="stat-card s-blue"><div class="stat-label">Total Cases</div><div class="stat-value" id="stat-cases">—</div></div>
-      <div class="stat-card s-amber"><div class="stat-label">Open Cases</div><div class="stat-value" id="stat-open">—</div></div>
-      <div class="stat-card s-red"><div class="stat-label">Weapons Detected</div><div class="stat-value" id="stat-weapons">—</div></div>
-      <div class="stat-card s-green"><div class="stat-label">Evidence Processed</div><div class="stat-value" id="stat-evidence">—</div></div>
-      <div class="stat-card s-purple"><div class="stat-label">3D Reconstructions</div><div class="stat-value" id="stat-recon">—</div></div>
-      <div class="stat-card s-cyan"><div class="stat-label">Critical Cases</div><div class="stat-value" id="stat-critical">—</div></div>
+      <div class="stat-card s-blue"><div class="stat-label">Total Cases</div><div class="stat-value" id="stat-cases">â€”</div></div>
+      <div class="stat-card s-amber"><div class="stat-label">Open Cases</div><div class="stat-value" id="stat-open">â€”</div></div>
+      <div class="stat-card s-red"><div class="stat-label">Weapons Detected</div><div class="stat-value" id="stat-weapons">â€”</div></div>
+      <div class="stat-card s-green"><div class="stat-label">Evidence Processed</div><div class="stat-value" id="stat-evidence">â€”</div></div>
+      <div class="stat-card s-purple"><div class="stat-label">3D Reconstructions</div><div class="stat-value" id="stat-recon">â€”</div></div>
+      <div class="stat-card s-cyan"><div class="stat-label">Critical Cases</div><div class="stat-value" id="stat-critical">â€”</div></div>
     </div>
 
     <div class="grid-2">
       <div class="card">
-        <div class="card-title">📊 Evidence Risk Distribution</div>
+        <div class="card-title"> Evidence Risk Distribution</div>
         <canvas id="risk-chart" height="180"></canvas>
       </div>
       <div class="card">
-        <div class="card-title">📁 Recent Cases</div>
+        <div class="card-title">Recent Cases</div>
         <div id="recent-cases-list"></div>
       </div>
     </div>
   </div>
 
-  <!-- ── CASES ──────────────────────────────────────────────── -->
+  <!-- â”€â”€ CASES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div id="page-cases" class="page-section">
     <div class="section-header">
       <div>
@@ -264,7 +472,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 
     <!-- New case form -->
     <div id="new-case-form" class="card" style="margin-bottom:1.25rem;display:none">
-      <div class="card-title">📁 Create New Case</div>
+      <div class="card-title">Create New Case</div>
       <div class="form-row">
         <div class="form-group"><label>Case Title</label><input type="text" id="case-title" placeholder="e.g. Homicide Investigation"/></div>
         <div class="form-group"><label>Case Number</label><input type="text" id="case-number" placeholder="e.g. CASE-2026-001"/></div>
@@ -301,7 +509,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div class="card">
       <div id="cases-loader" class="loader" style="display:flex"><div class="spinner"></div></div>
       <div id="cases-empty" class="empty" style="display:none">
-        <div class="empty-icon">📁</div>
+        <div class="empty-icon"></div>
         <div class="empty-title">No cases yet</div>
         <div class="empty-sub">Create your first forensic case above.</div>
       </div>
@@ -314,7 +522,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </div>
   </div>
 
-  <!-- ── ANALYZE ────────────────────────────────────────────── -->
+  <!-- â”€â”€ ANALYZE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div id="page-analyze" class="page-section">
     <div class="section-header">
       <div>
@@ -327,25 +535,25 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <!-- LEFT: Upload form -->
       <div>
         <div class="card" style="margin-bottom:1.25rem">
-          <div class="card-title">📤 Upload Evidence Image</div>
+          <div class="card-title"> Upload Evidence Image</div>
           <div class="upload-zone" id="upload-zone">
             <input type="file" id="image-input" accept="image/*" onchange="handleImageSelect(this)"/>
-            <div style="font-size:2rem;margin-bottom:.5rem">🔍</div>
+            <div style="font-size:2rem;margin-bottom:.5rem"></div>
             <div style="font-size:14px;font-weight:600;margin-bottom:.25rem">Drop crime scene image here</div>
-            <div style="font-size:12px;color:var(--muted)">PNG, JPG — max 50MB</div>
+            <div style="font-size:12px;color:var(--muted)">PNG, JPG â€” max 50MB</div>
           </div>
           <img id="preview-img" alt="Preview"/>
           <div id="change-btn" style="display:none;margin-top:.5rem">
-            <button onclick="clearImage()" style="background:transparent;border:1px solid var(--border2);color:var(--muted);padding:.35rem .9rem;border-radius:6px;font-size:12px;cursor:pointer">✕ Clear image</button>
+            <button onclick="clearImage()" style="background:transparent;border:1px solid var(--border2);color:var(--muted);padding:.35rem .9rem;border-radius:6px;font-size:12px;cursor:pointer">âœ• Clear image</button>
           </div>
         </div>
 
         <div class="card">
-          <div class="card-title">📋 Evidence Details</div>
+          <div class="card-title"> Evidence Details</div>
           <div class="form-group">
             <label>Select Case</label>
             <select id="evidence-case-id">
-              <option value="">— Select a case —</option>
+              <option value=""> Select a case </option>
             </select>
           </div>
           <div class="form-group">
@@ -353,7 +561,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
             <textarea id="evidence-notes" rows="2" placeholder="Evidence description, location found..."></textarea>
           </div>
           <button class="btn btn-primary btn-full" id="analyze-btn" onclick="analyzeEvidence()">
-            🔍 Run YOLO Detection
+            ðŸ” Run YOLO Detection
           </button>
           <div class="loader" id="analyze-loader">
             <div class="spinner"></div>
@@ -376,11 +584,11 @@ tr:hover td{background:rgba(255,255,255,.02)}
               <div style="font-size:11px;color:var(--muted)">Objects Found</div>
             </div>
             <div style="text-align:center;padding:.75rem;background:var(--bg);border-radius:8px;border:1px solid var(--border)">
-              <div style="font-size:1.5rem;font-weight:700" id="res-weapon">—</div>
+              <div style="font-size:1.5rem;font-weight:700" id="res-weapon">â€”</div>
               <div style="font-size:11px;color:var(--muted)">Weapons</div>
             </div>
             <div style="text-align:center;padding:.75rem;background:var(--bg);border-radius:8px;border:1px solid var(--border)">
-              <div style="font-size:1.5rem;font-weight:700;text-transform:capitalize" id="res-risk-text">—</div>
+              <div style="font-size:1.5rem;font-weight:700;text-transform:capitalize" id="res-risk-text">â€”</div>
               <div style="font-size:11px;color:var(--muted)">Risk Level</div>
             </div>
           </div>
@@ -393,15 +601,15 @@ tr:hover td{background:rgba(255,255,255,.02)}
         </div>
 
         <div class="card" style="margin-bottom:1.25rem">
-          <div class="card-title">🔫 Detected Weapons</div>
+          <div class="card-title">Detected Evidence Labels</div>
           <div id="detections-list"></div>
         </div>
 
         <div class="card">
-          <div class="card-title">🧊 3D Reconstruction</div>
+          <div class="card-title">ðŸ§Š 3D Reconstruction</div>
           <div style="font-size:13px;color:var(--muted);margin-bottom:.75rem">Generate a 3D point cloud of this crime scene</div>
           <button class="btn btn-green btn-full" id="reconstruct-btn" onclick="runReconstruction()" style="display:none">
-            🧊 Build 3D Scene
+            ðŸ§Š Build 3D Scene
           </button>
         </div>
       </div>
@@ -409,7 +617,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <!-- Empty state for results -->
       <div id="detection-empty" class="card">
         <div class="empty">
-          <div class="empty-icon">🔍</div>
+          <div class="empty-icon"></div>
           <div class="empty-title">No analysis yet</div>
           <div class="empty-sub">Upload an image and select a case to run YOLO detection.</div>
         </div>
@@ -417,7 +625,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </div>
   </div>
 
-  <!-- ── 3D RECONSTRUCT ─────────────────────────────────────── -->
+  <!-- â”€â”€ 3D RECONSTRUCT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
   <div id="page-reconstruct" class="page-section">
     <div class="section-header">
       <div>
@@ -428,27 +636,27 @@ tr:hover td{background:rgba(255,255,255,.02)}
 
     <div class="grid-2" style="margin-bottom:1.25rem">
       <div class="card">
-        <div class="card-title">🧊 Load Scene</div>
+        <div class="card-title">ðŸ§Š Load Scene</div>
         <div class="form-group">
           <label>Select Case</label>
           <select id="recon-case-id" onchange="loadReconstructions()">
-            <option value="">— Select a case —</option>
+            <option value="">â€” Select a case â€”</option>
           </select>
         </div>
         <div class="form-group">
           <label>Available Scenes</label>
           <select id="recon-scene-select">
-            <option value="">— Select a scene —</option>
+            <option value="">â€” Select a scene â€”</option>
           </select>
         </div>
         <button class="btn btn-primary btn-full" onclick="loadSelectedScene()">Load 3D Scene</button>
       </div>
 
       <div class="card">
-        <div class="card-title">📊 Scene Info</div>
+        <div class="card-title">ðŸ“Š Scene Info</div>
         <div id="scene-info">
           <div class="empty">
-            <div class="empty-icon">🧊</div>
+            <div class="empty-icon">ðŸ§Š</div>
             <div class="empty-title">No scene loaded</div>
             <div class="empty-sub">Select a reconstruction to view scene details.</div>
           </div>
@@ -458,20 +666,21 @@ tr:hover td{background:rgba(255,255,255,.02)}
 
     <!-- Three.js 3D viewer -->
     <div class="card">
-      <div class="card-title">🎮 3D Scene Viewer — drag to rotate · scroll to zoom</div>
+      <div class="card-title">ðŸŽ® 3D Scene Viewer â€” drag to rotate Â· scroll to zoom</div>
       <div id="threejs-container">
         <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px" id="viewer-placeholder">
           <div style="text-align:center">
-            <div style="font-size:2rem;margin-bottom:.5rem">🧊</div>
+            <div style="font-size:2rem;margin-bottom:.5rem">ðŸ§Š</div>
             <div>Load a 3D scene to view it here</div>
           </div>
         </div>
         <div class="viewer-label" id="viewer-label" style="display:none">POINT CLOUD VIEW</div>
         <canvas id="threejs-canvas" style="display:none"></canvas>
         <div class="viewer-controls" style="display:none" id="viewer-controls">
-          <button class="viewer-btn" onclick="resetCamera()">⟳ Reset</button>
-          <button class="viewer-btn" onclick="toggleWireframe()">◻ Wireframe</button>
-          <button class="viewer-btn" onclick="togglePoints()">● Points</button>
+          <button class="viewer-btn" onclick="resetCamera()">âŸ³ Reset</button>
+          <button class="viewer-btn" onclick="toggleWireframe()">â—» Wireframe</button>
+          <button class="viewer-btn" onclick="togglePoints()">â— Points</button>
+          <button class="viewer-btn" onclick="downloadSceneProvenance()">JSON Provenance</button>
         </div>
       </div>
     </div>
@@ -483,21 +692,31 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <div id="toast" class="toast"></div>
 
 <script>
-// ─── State ────────────────────────────────────────────────────
+// â”€â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 let selectedFile    = null;
 let currentEvidence = null;
 let threeScene      = null;
 let threeRenderer   = null;
 let threeCamera     = null;
 let threeControls   = null;
+let threeMarkers    = [];
+let threeMesh       = null;
+let threeWire       = null;
+let threePoints     = null;
+let threeAnimation  = null;
+let selected3DObject = null;
+let currentSceneData = null;
 let riskChart       = null;
+const displayDetectionLabel = d => d.display_label || String(d.label || d.class_name || 'Evidence')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
 const detectionIcons = {
-  gun:'🔫', pistol:'🔫', rifle:'🔫', knife:'🔪', grenade:'⚠️',
-  blood:'🩸', fingerprint:'☝️', shell_casing:'●', footprint:'👣',
-  rope:'〰️', drugs:'◆', broken_glass:'◇'
+  gun:'ðŸ”«', pistol:'ðŸ”«', rifle:'ðŸ”«', knife:'ðŸ”ª', grenade:'âš ï¸',
+  blood:'ðŸ©¸', fingerprint:'â˜ï¸', shell_casing:'â—', footprint:'ðŸ‘£',
+  rope:'ã€°ï¸', drugs:'â—†', broken_glass:'â—‡'
 };
 
-// ─── Navigation ───────────────────────────────────────────────
+// â”€â”€â”€ Navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function showPage(page) {
   document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-link, .sidebar-item').forEach(l => l.classList.remove('active'));
@@ -514,7 +733,7 @@ function showPage(page) {
   }
 }
 
-// ─── Dashboard ────────────────────────────────────────────────
+// â”€â”€â”€ Dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function loadDashboard() {
   try {
     const r    = await fetch('/api/stats/');
@@ -575,7 +794,7 @@ async function loadDashboard() {
   } catch(e) { showToast('Failed to load dashboard', 'error'); }
 }
 
-// ─── Cases ────────────────────────────────────────────────────
+// â”€â”€â”€ Cases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function openNewCase() {
   const f = document.getElementById('new-case-form');
   f.style.display = f.style.display === 'none' ? 'block' : 'none';
@@ -626,13 +845,13 @@ async function loadCases() {
       <tr>
         <td style="font-family:var(--mono);font-size:12px">${c.case_number}</td>
         <td style="font-weight:500">${c.title}</td>
-        <td style="color:var(--muted);font-size:12px">${c.location||'—'}</td>
+        <td style="color:var(--muted);font-size:12px">${c.location||'â€”'}</td>
         <td><span style="color:${c.priority_color};font-size:12px;font-family:var(--mono)">${c.priority.toUpperCase()}</span></td>
         <td><span style="font-size:12px;color:var(--muted)">${c.status}</span></td>
         <td style="font-family:var(--mono);font-size:12px">${c.evidence_count}</td>
         <td>
           <button class="btn btn-ghost" style="font-size:11px;padding:.3rem .6rem" data-case-title="${escapeAttr(c.title)}" onclick="selectCaseForAnalysis(${c.id}, this.dataset.caseTitle)">Analyze</button>
-          <a href="/api/cases/${c.id}/report/" target="_blank" class="btn btn-green" style="font-size:11px;padding:.3rem .6rem;text-decoration:none">⬇ PDF</a>
+          <a href="/api/cases/${c.id}/report/" target="_blank" class="btn btn-green" style="font-size:11px;padding:.3rem .6rem;text-decoration:none">â¬‡ PDF</a>
           <button class="btn btn-danger" onclick="deleteCase(${c.id},this)">Delete</button>
         </td>
       </tr>`).join('');
@@ -661,20 +880,20 @@ function selectCaseForAnalysis(id, title) {
   }, 300);
 }
 
-// ─── Cases dropdown ───────────────────────────────────────────
+// â”€â”€â”€ Cases dropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function loadCasesDropdown(selectId) {
   try {
     const r    = await fetch('/api/cases/');
     const data = await r.json();
     const sel  = document.getElementById(selectId);
     const cur  = sel.value;
-    sel.innerHTML = '<option value="">— Select a case —</option>' +
-      data.map(c => `<option value="${c.id}">${c.case_number} — ${c.title}</option>`).join('');
+    sel.innerHTML = '<option value="">â€” Select a case â€”</option>' +
+      data.map(c => `<option value="${c.id}">${c.case_number} â€” ${c.title}</option>`).join('');
     if (cur) sel.value = cur;
   } catch(e) {}
 }
 
-// ─── Image upload ─────────────────────────────────────────────
+// â”€â”€â”€ Image upload â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function handleImageSelect(input) {
   if (input.files && input.files[0]) {
     selectedFile = input.files[0];
@@ -718,7 +937,7 @@ window.addEventListener('load', () => {
   loadDashboard();
 });
 
-// ─── Analyze evidence ─────────────────────────────────────────
+// â”€â”€â”€ Analyze evidence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function analyzeEvidence() {
   if (!selectedFile) { showToast('Please upload an image first', 'error'); return; }
   const caseId = document.getElementById('evidence-case-id').value;
@@ -736,13 +955,21 @@ async function analyzeEvidence() {
   fd.append('notes',   document.getElementById('evidence-notes').value);
 
   try {
-    const r    = await fetch('/api/evidence/upload/', { method:'POST', body:fd });
+    const r = await fetch('/api/evidence/upload/', {
+      method:'POST',
+      headers:{'X-CSRFToken': getCookie('csrftoken'), 'X-Requested-With':'XMLHttpRequest'},
+      body:fd
+    });
+    const contentType = r.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(r.status === 404 ? 'Selected case is not available for upload. Refresh cases and try again.' : 'Server returned a non-JSON response. Please log in again and retry.');
+    }
     const data = await r.json();
-    if (!r.ok) throw new Error(data.error || 'Detection failed');
+    if (!r.ok) throw new Error(data.detail || data.error || 'Detection failed');
 
     currentEvidence = data;
     showDetectionResults(data);
-    showToast(`Found ${data.total_objects} object(s) — Risk: ${data.overall_risk}`, 'success');
+    showToast(`Found ${data.total_objects} object(s) â€” Risk: ${data.overall_risk}`, 'success');
   } catch(e) {
     showToast(e.message, 'error');
   } finally {
@@ -756,7 +983,7 @@ function showDetectionResults(data) {
   document.getElementById('detection-results').style.display = 'block';
 
   document.getElementById('res-total').textContent     = data.total_objects;
-  document.getElementById('res-weapon').textContent    = data.weapons_found ? '⚠️ Yes' : '✅ None';
+  document.getElementById('res-weapon').textContent    = data.weapons_found ? 'âš ï¸ Yes' : 'âœ… None';
   document.getElementById('res-risk-text').textContent = data.overall_risk;
   document.getElementById('res-risk-text').style.color = data.risk_color;
 
@@ -772,10 +999,10 @@ function showDetectionResults(data) {
   document.getElementById('detections-list').innerHTML = data.detections.length
     ? data.detections.map(d => `
         <div class="detection-card">
-          <div class="detection-icon" style="background:rgba(239,68,68,.1)">${detectionIcons[d.class_name]||'⚠️'}</div>
+          <div class="detection-icon" style="background:rgba(239,68,68,.1)">${detectionIcons[d.class_name]||'âš ï¸'}</div>
           <div class="detection-info">
-            <div class="detection-name">${d.class_name}</div>
-            <div class="detection-conf">Confidence: ${d.confidence_pct}%</div>
+            <div class="detection-name">${displayDetectionLabel(d)}</div>
+            <div class="detection-conf">Confidence: ${d.confidence_pct}% Â· Source: ${d.source || 'detector'}${d.location ? ` Â· ${d.location}` : ''}</div>
           </div>
           <span class="risk-badge risk-${d.risk_level}"><span class="risk-dot"></span>${d.risk_level}</span>
         </div>`).join('')
@@ -784,23 +1011,27 @@ function showDetectionResults(data) {
   document.getElementById('reconstruct-btn').style.display = 'flex';
 }
 
-// ─── 3D Reconstruction ────────────────────────────────────────
+// â”€â”€â”€ 3D Reconstruction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function runReconstruction() {
   if (!currentEvidence) return;
   showToast('Starting 3D reconstruction...', 'info');
   document.getElementById('reconstruct-btn').disabled = true;
-  document.getElementById('reconstruct-btn').textContent = '⏳ Reconstructing...';
+  document.getElementById('reconstruct-btn').textContent = 'â³ Reconstructing...';
 
   try {
-    const r = await fetch('/api/reconstruct/', {
+    const r = await fetch('/api/reconstruction/reconstruct/', {
       method:  'POST',
-      headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
+      headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken'),'X-Requested-With':'XMLHttpRequest'},
       body:    JSON.stringify({ evidence_id: currentEvidence.id })
     });
+    const contentType = r.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(r.status === 404 ? '3D route or evidence was not found. Refresh the page and try again.' : '3D server returned a non-JSON response. Please log in again and retry.');
+    }
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || 'Reconstruction failed');
 
-    showToast(`3D scene built — ${data.total_points} points, ${data.num_clusters} clusters`, 'success');
+    showToast(`3D scene built â€” ${data.total_points} points, ${data.num_clusters} clusters`, 'success');
     showPage('reconstruct');
     if (data.scene_id || data.id) loadSceneIntoViewer(data.scene_id || data.id, data);
     else if (data.ply_url) loadPLYIntoViewer(data.ply_url, data);
@@ -808,7 +1039,7 @@ async function runReconstruction() {
     showToast(e.message, 'error');
   } finally {
     document.getElementById('reconstruct-btn').disabled = false;
-    document.getElementById('reconstruct-btn').textContent = '🧊 Build 3D Scene';
+    document.getElementById('reconstruct-btn').textContent = 'ðŸ§Š Build 3D Scene';
   }
 }
 
@@ -816,26 +1047,36 @@ async function loadReconstructions() {
   const caseId = document.getElementById('recon-case-id').value;
   if (!caseId) return;
   try {
-    const r    = await fetch(`/api/reconstructions/?case_id=${caseId}`);
-    const data = await r.json();
+    const r    = await fetch(`/api/reconstruction/reconstructions/?case_id=${caseId}`);
+    const contentType = r.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error('3D scene list returned a non-JSON response. Please refresh and retry.');
+    }
+    const payload = await r.json();
+    if (!r.ok) throw new Error(payload.error || 'Failed to load 3D scenes');
+    const data = Array.isArray(payload) ? payload : (payload.reconstructions || []);
     const sel  = document.getElementById('recon-scene-select');
     sel.innerHTML = data.length
-      ? '<option value="">— Select a scene —</option>' +
-        data.map(r => `<option value="${r.id}" data-ply="${escapeAttr(r.ply_url)}" data-points="${r.total_points}" data-clusters="${r.num_clusters}" data-size="${r.ply_size_mb}">
-          Scene #${r.id} — ${r.total_points} pts</option>`).join('')
+      ? '<option value="">â€” Select a scene â€”</option>' +
+        data.map(r => `<option value="${r.id}" data-mesh="${escapeAttr(r.mesh_url || r.ply_url)}" data-mesh-type="${escapeAttr(r.mesh_type || 'glb')}" data-points="${r.total_points}" data-clusters="${r.num_clusters}" data-size="${r.ply_size_mb}">
+          Scene #${r.id} â€” solid mesh â€” ${r.total_points} pts</option>`).join('')
       : '<option value="">No reconstructions yet</option>';
-  } catch(e) {}
+  } catch(e) {
+    showToast(e.message, 'error');
+  }
 }
 
 function loadSelectedScene() {
   const sel    = document.getElementById('recon-scene-select');
   const option = sel.options[sel.selectedIndex];
-  if (!option || !option.dataset.ply) { showToast('Please select a scene', 'error'); return; }
+  if (!option || !option.value) { showToast('Please select a scene', 'error'); return; }
 
   const sceneData = {
     id:           option.value,
     scene_id:     option.value,
-    ply_url:      option.dataset.ply,
+    mesh_url:     option.dataset.mesh,
+    mesh_type:    option.dataset.meshType || 'glb',
+    ply_url:      option.dataset.mesh,
     total_points: option.dataset.points,
     num_clusters: option.dataset.clusters,
     ply_size_mb:  option.dataset.size,
@@ -843,290 +1084,277 @@ function loadSelectedScene() {
   loadSceneIntoViewer(option.value, sceneData);
 }
 
-// ─── Three.js 3D viewer ───────────────────────────────────────
 function initThreeJS() {
-    if (threeRenderer) return;
-    if (!window.THREE || !THREE.WebGLRenderer || !THREE.OrbitControls) {
-        document.getElementById('viewer-placeholder').innerHTML =
-            '<div style="text-align:center"><div style="font-size:2rem;margin-bottom:.5rem">3D</div><div>3D libraries did not load. Check your internet connection for CDN access.</div></div>';
-        showToast('3D viewer libraries are not loaded', 'error');
-        return;
-    }
+  const canvas = document.getElementById('threejs-canvas');
+  const container = document.getElementById('threejs-container');
+  if (threeRenderer || !canvas || !container || !window.THREE) return;
 
-    const container = document.getElementById('threejs-container');
-    const w = container.clientWidth  || 800;
-    const h = container.clientHeight || 400;
+  threeScene = new THREE.Scene();
+  threeScene.background = new THREE.Color(0x050a0f);
 
-    // Renderer
-    threeRenderer = new THREE.WebGLRenderer({ antialias: true });
-    threeRenderer.setSize(w, h);
-    threeRenderer.setClearColor(0x050a0f, 1);
-    threeRenderer.setPixelRatio(window.devicePixelRatio);
+  threeCamera = new THREE.PerspectiveCamera(42, container.clientWidth / container.clientHeight, 0.01, 500);
+  threeCamera.position.set(0, 2.2, 8);
 
-    // Replace canvas with renderer's canvas
-    const existingCanvas = document.getElementById('threejs-canvas');
-    existingCanvas.style.display = 'none';
-    container.appendChild(threeRenderer.domElement);
+  threeRenderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+  threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  threeRenderer.setSize(container.clientWidth, container.clientHeight);
+  threeRenderer.outputEncoding = THREE.sRGBEncoding;
+  threeRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+  threeRenderer.toneMappingExposure = 1.25;
 
-    // Scene and camera
-    threeScene  = new THREE.Scene();
-    threeCamera = new THREE.PerspectiveCamera(60, w / h, 0.001, 1000);
-    threeCamera.position.set(0, 0, 3);
+  threeScene.add(new THREE.HemisphereLight(0xffffff, 0x243246, 1.8));
+  const key = new THREE.DirectionalLight(0xffffff, 2.2);
+  key.position.set(4, 7, 6);
+  threeScene.add(key);
+  const fill = new THREE.DirectionalLight(0x9ec5ff, 0.9);
+  fill.position.set(-5, 3, -4);
+  threeScene.add(fill);
 
-    // Controls
-    threeControls = new THREE.OrbitControls(threeCamera, threeRenderer.domElement);
-    threeControls.enableDamping    = true;
-    threeControls.dampingFactor    = 0.05;
-    threeControls.enableZoom       = true;
-    threeControls.autoRotate       = false;
+  const grid = new THREE.GridHelper(12, 24, 0x2f4668, 0x162033);
+  grid.position.y = -2.6;
+  threeScene.add(grid);
 
-    // Lights
-    threeScene.add(new THREE.AmbientLight(0xffffff, 1.0));
-    threeScene.add(new THREE.DirectionalLight(0xffffff, 0.5));
+  threeControls = new THREE.OrbitControls(threeCamera, canvas);
+  threeControls.enableDamping = true;
+  threeControls.dampingFactor = 0.08;
+  threeControls.target.set(0, 0, 0);
 
-    // Animate loop
-    function animate() {
-        requestAnimationFrame(animate);
-        threeControls.update();
-        threeRenderer.render(threeScene, threeCamera);
-    }
-    animate();
-
-    // Handle resize
-    window.addEventListener('resize', () => {
-        const w2 = container.clientWidth;
-        const h2 = container.clientHeight;
-        threeCamera.aspect = w2 / h2;
-        threeCamera.updateProjectionMatrix();
-        threeRenderer.setSize(w2, h2);
-    });
+  window.addEventListener('resize', resizeThreeViewer);
+  animateThreeViewer();
 }
 
-async function loadSceneIntoViewer(sceneId, sceneData = {}) {
-    initThreeJS();
-    if (!threeScene || !window.THREE) {
-        showToast('3D viewer is not available', 'error');
-        return;
-    }
+function resizeThreeViewer() {
+  if (!threeRenderer || !threeCamera) return;
+  const container = document.getElementById('threejs-container');
+  threeCamera.aspect = container.clientWidth / container.clientHeight;
+  threeCamera.updateProjectionMatrix();
+  threeRenderer.setSize(container.clientWidth, container.clientHeight);
+}
 
-    setViewerLoading('Checking reconstruction file...');
+function animateThreeViewer() {
+  threeAnimation = requestAnimationFrame(animateThreeViewer);
+  if (threeControls) threeControls.update();
+  if (threeRenderer && threeScene && threeCamera) threeRenderer.render(threeScene, threeCamera);
+}
 
+function clearThreeScene() {
+  if (!threeScene) return;
+  [threeMesh, threeWire, threePoints, ...threeMarkers].filter(Boolean).forEach(obj => threeScene.remove(obj));
+  threeMesh = null;
+  threeWire = null;
+  threePoints = null;
+  threeMarkers = [];
+  selected3DObject = null;
+}
+
+async function loadSceneIntoViewer(sceneId, fallbackData = {}) {
+  initThreeJS();
+  document.getElementById('viewer-placeholder').style.display = 'none';
+  document.getElementById('threejs-canvas').style.display = 'block';
+  document.getElementById('viewer-controls').style.display = 'flex';
+  document.getElementById('viewer-label').style.display = 'block';
+  document.getElementById('viewer-label').textContent = 'SOLID MESH VIEW';
+
+  let data = fallbackData || {};
+  if (sceneId) {
     try {
-        const r = await fetch(`/api/reconstruction-data/${sceneId}/?max_points=90000`);
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.error || 'Point-cloud validation failed');
-        renderPointCloudData(data);
-        updateSceneInfo({...sceneData, ...data}, 'Loaded');
-        showToast(`3D scene loaded — ${Number(data.rendered_points).toLocaleString()} rendered points`, 'success');
-    } catch (e) {
-        console.error('Point-cloud data load error:', e);
-        showToast(e.message, 'error');
-        updateSceneInfo({...sceneData, error: e.message}, 'Load failed');
-        if (sceneData.ply_url) {
-            showToast('Trying original PLY viewer as fallback...', 'info');
-            loadPLYIntoViewer(sceneData.ply_url, sceneData);
-        } else {
-            document.getElementById('viewer-label').textContent = 'Load failed';
-        }
-    }
+      const r = await fetch(`/api/reconstruction/reconstruction-data/${sceneId}/`);
+      if (r.ok) data = { ...data, ...(await r.json()) };
+    } catch (e) {}
+  }
+
+  const meshUrl = data.mesh_url || data.glb_url || data.ply_url;
+  const meshType = data.mesh_type || (meshUrl && meshUrl.toLowerCase().endsWith('.ply') ? 'ply' : 'glb');
+  if (!meshUrl) {
+    showToast('This scene has no mesh file. Re-run 3D reconstruction.', 'error');
+    return;
+  }
+
+  currentSceneData = {
+    ...data,
+    scene_id: sceneId || data.scene_id || data.id,
+    render_mode: 'solid_mesh',
+    provenance: {
+      mesh_url: meshUrl,
+      mesh_type: meshType,
+      generated_at: new Date().toISOString(),
+    },
+  };
+
+  await loadMeshIntoViewer(meshUrl, meshType);
+  updateSceneInfo(currentSceneData);
 }
 
-function setViewerLoading(message) {
-    document.getElementById('viewer-placeholder').style.display  = 'none';
-    document.getElementById('viewer-label').style.display        = 'block';
-    document.getElementById('viewer-label').textContent          = message;
-    document.getElementById('viewer-controls').style.display     = 'flex';
+function loadPLYIntoViewer(url, data = {}) {
+  return loadMeshIntoViewer(url, 'ply').then(() => updateSceneInfo(data));
 }
 
-function clearPointCloudObjects() {
-    const toRemove = [];
-    threeScene.traverse(obj => {
-        if (obj.type === 'Points' || obj.type === 'Mesh') toRemove.push(obj);
-    });
-    toRemove.forEach(obj => {
-        if (obj.geometry) obj.geometry.dispose();
-        if (obj.material) obj.material.dispose();
-        threeScene.remove(obj);
-    });
-}
+function loadMeshIntoViewer(url, type = 'glb') {
+  initThreeJS();
+  clearThreeScene();
+  return new Promise((resolve, reject) => {
+    const onLoad = group => {
+      prepareSolidMesh(group, type);
+      fitMeshToViewer(group);
+      createWireAndPointOverlays(group);
+      threeScene.add(group);
+      threeMesh = group;
+      document.getElementById('viewer-label').textContent = 'SOLID MESH VIEW';
+      resolve(group);
+    };
+    const onError = err => {
+      showToast('Could not load the 3D mesh. Re-run reconstruction.', 'error');
+      reject(err);
+    };
 
-function fitCameraToObject(object3d) {
-    const box    = new THREE.Box3().setFromObject(object3d);
-    const center = new THREE.Vector3();
-    const size   = new THREE.Vector3();
-    box.getCenter(center);
-    box.getSize(size);
-
-    const maxDim  = Math.max(size.x, size.y, size.z, 0.01);
-    const fov     = threeCamera.fov * (Math.PI / 180);
-    const camDist = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 2.2;
-
-    threeCamera.position.set(center.x, center.y, center.z + camDist);
-    threeCamera.near = Math.max(camDist / 1000, 0.0001);
-    threeCamera.far  = Math.max(camDist * 1000, 10);
-    threeCamera.updateProjectionMatrix();
-    threeControls.target.copy(center);
-    threeControls.update();
-}
-
-function renderPointCloudData(data) {
-    clearPointCloudObjects();
-
-    const geometry = new THREE.BufferGeometry();
-    const flatPoints = new Float32Array(data.points.flat());
-    geometry.setAttribute('position', new THREE.BufferAttribute(flatPoints, 3));
-
-    const hasColors = Array.isArray(data.colors) && data.colors.length === data.points.length;
-    if (hasColors) {
-        geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(data.colors.flat()), 3));
+    if (type === 'ply' || url.toLowerCase().endsWith('.ply')) {
+      new THREE.PLYLoader().load(url, geometry => {
+        geometry.computeVertexNormals();
+        const material = new THREE.MeshStandardMaterial({
+          vertexColors: !!geometry.attributes.color,
+          color: geometry.attributes.color ? 0xffffff : 0x9fb6d8,
+          roughness: 0.72,
+          metalness: 0.04,
+          side: THREE.DoubleSide,
+        });
+        onLoad(new THREE.Mesh(geometry, material));
+      }, undefined, onError);
+      return;
     }
 
-    const material = new THREE.PointsMaterial({
-        size: Math.max(0.004, Math.min(0.015, 2.4 / Math.sqrt(data.rendered_points || data.points.length))),
-        vertexColors: hasColors,
-        color: hasColors ? undefined : 0x3b82f6,
-        sizeAttenuation: true,
-    });
-
-    const points = new THREE.Points(geometry, material);
-    threeScene.add(points);
-    fitCameraToObject(points);
-
-    document.getElementById('viewer-label').textContent = 'POINT CLOUD — ' +
-        Number(data.rendered_points || data.points.length).toLocaleString() + ' / ' +
-        Number(data.total_points || data.num_points || data.points.length).toLocaleString() + ' points';
+    new THREE.GLTFLoader().load(url, gltf => onLoad(gltf.scene), undefined, onError);
+  });
 }
 
-function loadPLYIntoViewer(plyUrl, sceneData) {
-    initThreeJS();
-    if (!threeScene || !window.THREE || !THREE.PLYLoader) {
-        showToast('PLY loader is not available', 'error');
-        return;
-    }
+function prepareSolidMesh(group) {
+  group.traverse(node => {
+    if (!node.isMesh) return;
+    node.geometry.computeVertexNormals();
+    const hasColors = !!node.geometry.attributes.color;
+    node.material = new THREE.MeshStandardMaterial({
+      vertexColors: hasColors,
+      color: hasColors ? 0xffffff : 0x9fb6d8,
+      roughness: 0.68,
+      metalness: 0.03,
+      side: THREE.DoubleSide,
+    });
+  });
+}
 
-    setViewerLoading('Loading original PLY...');
-    clearPointCloudObjects();
+function fitMeshToViewer(group) {
+  const box = new THREE.Box3().setFromObject(group);
+  const size = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  box.getSize(size);
+  box.getCenter(center);
 
-    const loader = new THREE.PLYLoader();
+  const targetSize = 9.5;
+  const scale = targetSize / Math.max(size.x, size.y, size.z, 0.001);
+  group.scale.setScalar(scale);
+  group.position.sub(center.multiplyScalar(scale));
 
-    loader.load(
-        plyUrl,
+  threeCamera.position.set(0, 2.4, 9.2);
+  threeControls.target.set(0, 0, 0);
+  threeControls.update();
+}
 
-        // onLoad
-        geometry => {
-            geometry.computeVertexNormals();
+function createWireAndPointOverlays(group) {
+  group.updateMatrixWorld(true);
+  const mesh = [];
+  group.traverse(node => { if (node.isMesh) mesh.push(node); });
+  if (!mesh.length) return;
 
-            const hasColors = geometry.attributes.color !== undefined;
-            const material  = new THREE.PointsMaterial({
-                size:         0.008,
-                vertexColors: hasColors,
-                color:        hasColors ? undefined : 0x3b82f6,
-                sizeAttenuation: true,
-            });
-
-            const points = new THREE.Points(geometry, material);
-            threeScene.add(points);
-
-            fitCameraToObject(points);
-
-            document.getElementById('viewer-label').textContent = 'POINT CLOUD — ' +
-                geometry.attributes.position.count.toLocaleString() + ' points';
-
-            updateSceneInfo(sceneData, 'Loaded from PLY fallback');
-            showToast('3D scene loaded successfully!', 'success');
-        },
-
-        // onProgress
-        xhr => {
-            if (xhr.total > 0) {
-                const pct = Math.round(xhr.loaded / xhr.total * 100);
-                document.getElementById('viewer-label').textContent = `Loading: ${pct}%`;
-            }
-        },
-
-        // onError
-        err => {
-            console.error('PLY load error:', err);
-            showToast('Failed to load 3D scene. The PLY file could not be parsed or served.', 'error');
-            document.getElementById('viewer-label').textContent = 'Load failed';
-            updateSceneInfo({...sceneData, error: 'The browser could not parse the generated PLY file.'}, 'Load failed');
-        }
+  const edges = new THREE.Group();
+  const points = new THREE.Group();
+  mesh.forEach(node => {
+    const wire = new THREE.LineSegments(
+      new THREE.EdgesGeometry(node.geometry, 28),
+      new THREE.LineBasicMaterial({ color: 0x8bbcff, transparent: true, opacity: 0.16 })
     );
+    wire.position.copy(node.getWorldPosition(new THREE.Vector3()));
+    wire.quaternion.copy(node.getWorldQuaternion(new THREE.Quaternion()));
+    wire.scale.copy(node.getWorldScale(new THREE.Vector3()));
+    edges.add(wire);
 
-    updateSceneInfo(sceneData, 'Loading original PLY');
+    const pointCloud = new THREE.Points(
+      node.geometry,
+      new THREE.PointsMaterial({
+        size: 0.012,
+        vertexColors: !!node.geometry.attributes.color,
+        color: 0x9fb6d8,
+        transparent: true,
+        opacity: 0.35,
+      })
+    );
+    pointCloud.position.copy(wire.position);
+    pointCloud.quaternion.copy(wire.quaternion);
+    pointCloud.scale.copy(wire.scale);
+    points.add(pointCloud);
+  });
+  edges.visible = false;
+  points.visible = false;
+  threeWire = edges;
+  threePoints = points;
+  threeScene.add(edges);
+  threeScene.add(points);
 }
 
-function formatVector(values) {
-    if (!Array.isArray(values)) return '—';
-    return values.map(v => Number(v).toFixed(4)).join(', ');
+function updateSceneInfo(data) {
+  const total = Number(data.total_points || 0).toLocaleString();
+  const clusters = Number(data.num_clusters || 0).toLocaleString();
+  const meshType = (data.mesh_type || 'glb').toUpperCase();
+  document.getElementById('scene-info').innerHTML = `
+    <div class="stat-row"><span>Total points</span><strong>${total}</strong></div>
+    <div class="stat-row"><span>Clusters</span><strong>${clusters}</strong></div>
+    <div class="stat-row"><span>Render</span><strong>Solid ${meshType}</strong></div>
+  `;
 }
 
-function updateSceneInfo(sceneData = {}, status = 'Loaded') {
-    const totalPoints = Number(sceneData.total_points || sceneData.num_points || 0);
-    const renderedPoints = Number(sceneData.rendered_points || totalPoints || 0);
-    const fileSize = Number(sceneData.ply_size_mb || 0);
-    const bounds = sceneData.bounds || {};
-    const statusColor = status.toLowerCase().includes('fail') ? 'var(--red)' : 'var(--green)';
-
-    document.getElementById('scene-info').innerHTML = `
-        <div style="font-size:13px">
-            <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--border)">
-                <span style="color:var(--muted)">Total Points</span>
-                <span style="font-family:var(--mono)">${totalPoints ? totalPoints.toLocaleString() : '—'}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--border)">
-                <span style="color:var(--muted)">Rendered Points</span>
-                <span style="font-family:var(--mono)">${renderedPoints ? renderedPoints.toLocaleString() : '—'}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--border)">
-                <span style="color:var(--muted)">Object Clusters</span>
-                <span style="font-family:var(--mono)">${sceneData.num_clusters ?? '—'}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--border)">
-                <span style="color:var(--muted)">File Size</span>
-                <span style="font-family:var(--mono)">${fileSize ? fileSize.toFixed(2) + ' MB' : '—'}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;gap:.75rem;padding:.4rem 0;border-bottom:1px solid var(--border)">
-                <span style="color:var(--muted)">Scene Size XYZ</span>
-                <span style="font-family:var(--mono);text-align:right">${formatVector(bounds.size)}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;gap:.75rem;padding:.4rem 0;border-bottom:1px solid var(--border)">
-                <span style="color:var(--muted)">Center XYZ</span>
-                <span style="font-family:var(--mono);text-align:right">${formatVector(bounds.center)}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--border)">
-                <span style="color:var(--muted)">Colors</span>
-                <span style="font-family:var(--mono)">${sceneData.has_colors === undefined ? '—' : (sceneData.has_colors ? 'RGB' : 'single color')}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;padding:.4rem 0">
-                <span style="color:var(--muted)">Status</span>
-                <span style="color:${statusColor};font-family:var(--mono)">${status}</span>
-            </div>
-        </div>
-        ${sceneData.error ? `<div style="margin-top:.75rem;color:var(--red);font-size:12px;line-height:1.5">${escapeHtml(sceneData.error)}</div>` : ''}
-        <div style="margin-top:.75rem;font-size:12px;color:var(--muted);line-height:1.6">
-            🖱 Left drag → rotate<br>
-            🖱 Scroll → zoom<br>
-            🖱 Right drag → pan
-        </div>`;
-}
 function resetCamera() {
-  if (threeControls) { threeControls.reset(); }
+  if (!threeCamera || !threeControls) return;
+  threeCamera.position.set(0, 2.4, 9.2);
+  threeControls.target.set(0, 0, 0);
+  threeControls.update();
 }
 
 function toggleWireframe() {
-  threeScene.children.filter(c => c.type === 'Points').forEach(p => {
-    p.material.wireframe = !p.material.wireframe;
-  });
+  if (!threeWire) return;
+  threeWire.visible = !threeWire.visible;
 }
 
 function togglePoints() {
-  threeScene.children.filter(c => c.type === 'Points').forEach(p => {
-    p.visible = !p.visible;
-  });
+  if (!threePoints) return;
+  threePoints.visible = !threePoints.visible;
+  document.getElementById('viewer-label').textContent = threePoints.visible ? 'POINT OVERLAY' : 'SOLID MESH VIEW';
 }
 
-// ─── Utilities ────────────────────────────────────────────────
+function downloadSceneProvenance() {
+  if (!currentSceneData || !currentSceneData.provenance) {
+    showToast('Load a 3D scene before exporting provenance', 'error');
+    return;
+  }
+  const payload = {
+    provenance: currentSceneData.provenance,
+    scene_summary: {
+      scene_id: currentSceneData.scene_id,
+      rendered_points: currentSceneData.rendered_points,
+      total_points: currentSceneData.total_points,
+      object_count: currentSceneData.object_count,
+      render_mode: currentSceneData.render_mode,
+    },
+    detections: currentSceneData.detections || [],
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `scene-${currentSceneData.scene_id || 'reconstruction'}-provenance.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 function getCookie(name) {
   const v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
   return v ? v[2] : '';
@@ -1158,3 +1386,5 @@ function showToast(msg, type='success') {
 </script>
 </body>
 </html>
+
+

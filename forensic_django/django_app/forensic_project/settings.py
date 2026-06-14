@@ -31,6 +31,22 @@ DEBUG = True
 
 ALLOWED_HOSTS = [h for h in os.getenv('DJANGO_ALLOWED_HOSTS', '*').split(',') if h.strip()]
 
+try:
+    from decouple import config
+except ImportError:
+    def config(name, default=''):
+        return os.getenv(name, default)
+ 
+# ─── API Keys (read from .env) ───────────────────────────────
+GEMINI_API_KEY        = config('GEMINI_API_KEY', default='')
+GOOGLE_VISION_API_KEY = config('GOOGLE_VISION_API_KEY', default='')
+ 
+# Pass to environment so ai_detector.py can read them
+import os
+os.environ.setdefault('GEMINI_API_KEY',        GEMINI_API_KEY)
+os.environ.setdefault('GOOGLE_VISION_API_KEY', GOOGLE_VISION_API_KEY)
+
+
 
 
 # Application definition
@@ -130,9 +146,12 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static'] if (BASE_DIR / 'static').exists() else []
+# ─── Media (evidence uploads) ─────────────────────────────────
+import os
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ 
 MEDIA_URL  = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
@@ -142,3 +161,22 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'          # change to your home/dashboard URL
 LOGOUT_REDIRECT_URL = '/login/'
+
+
+# ─── Logging (useful for API debugging) ───────────────────────
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler'},
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'evidence.ai_detector': {'level': 'DEBUG', 'handlers': ['console']},
+        'reconstruction.views': {'level': 'DEBUG', 'handlers': ['console']},
+    },
+}
+ 

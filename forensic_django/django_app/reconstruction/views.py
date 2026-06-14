@@ -1,233 +1,292 @@
-# reconstruction/views.py
+"""
+reconstruction/views.py
+------------------------
+Django views for the 3D scene reconstruction pipeline.
+
+Endpoints
+---------
+POST /reconstruction/reconstruct/
+    Trigger reconstruction for an Evidence object.
+
+GET /reconstruction/reconstructions/
+    List all SceneReconstruction records (JSON).
+
+GET /reconstruction/reconstruction-data/<scene_id>/
+    Return scene metadata + signed URLs for GLB/PLY/depth.
+
+GET /reconstruction/<evidence_id>/
+    Render the 3D viewer HTML page.
+
+GET /reconstruction/<evidence_id>/data/
+    Return the latest reconstruction data for an evidence item.
+"""
+
+from __future__ import annotations
 
 import json
-import math
+import logging
 from pathlib import Path
-from django.shortcuts import render, get_object_or_404
-from django.http import JsonResponse, FileResponse
-from django.views.decorators.csrf import csrf_exempt
+
 from django.conf import settings
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, render
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 
-from .scene_builder import reconstruct_scene
+from evidence.models import Evidence
 from .models import SceneReconstruction
+from .scene_builder import build_scene
+
+log = logging.getLogger(__name__)
 
 
-def scene_payload(scene):
-    ply_path = Path(settings.MEDIA_ROOT) / str(scene.ply_file) if scene.ply_file else None
-    ply_exists = bool(ply_path and ply_path.exists())
-    ply_size = ply_path.stat().st_size if ply_exists else 0
+# ─── helpers ─────────────────────────────────────────────────────────────────
 
+def _media_url(field) -> str | None:
+    """Return absolute URL for a FileField / ImageField, or None if empty."""
+    if not field:
+        return None
+    try:
+        return field.url
+    except Exception:
+        return None
+
+
+def _media_path(field) -> str | None:
+    """Return absolute filesystem path for a FileField, or None if empty."""
+    if not field:
+        return None
+    try:
+        return field.path
+    except Exception:
+        return None
+
+
+def _out_paths(scene_id: int) -> dict[str, str]:
+    """Return filesystem paths for all scene output files."""
+    base = Path(settings.MEDIA_ROOT) / "scenes"
+    pc   = base / "pointclouds"
+    dm   = base / "depthmaps"
+    pc.mkdir(parents=True, exist_ok=True)
+    dm.mkdir(parents=True, exist_ok=True)
     return {
-        'id': scene.id,
-        'scene_id': scene.id,
-        'case_id': scene.case_id,
-        'evidence_id': scene.evidence_id,
-        'ply_url': f"/media/{scene.ply_file}" if scene.ply_file else None,
-        'total_points': scene.total_points,
-        'num_points': scene.total_points,
-        'num_clusters': scene.num_clusters,
-        'success': scene.success,
-        'error_message': scene.error_message,
-        'created_at': scene.created_at.isoformat(),
-        'ply_exists': ply_exists,
-        'ply_size_bytes': ply_size,
-        'ply_size_mb': round(ply_size / (1024 * 1024), 2) if ply_size else 0,
+        "glb":   str(pc / f"scene_{scene_id}.glb"),
+        "ply":   str(pc / f"scene_{scene_id}.ply"),
+        "depth": str(dm / f"depth_{scene_id}.png"),
     }
 
 
-def _safe_float(value, digits=5):
-    value = float(value)
-    if not math.isfinite(value):
-        return 0.0
-    return round(value, digits)
-
-
-def _sample_indices(total, max_points):
-    if total <= max_points:
-        return None
-    step = math.ceil(total / max_points)
-    return slice(0, total, step)
-
-
-def point_cloud_data(request, scene_id):
-    """
-    Return validated, render-ready point cloud data for the browser viewer.
-    This avoids opaque client-side PLY parsing failures and gives the UI
-    enough metadata to explain what was reconstructed.
-    """
-    scene = get_object_or_404(SceneReconstruction, pk=scene_id)
-    if not scene.success:
-        return JsonResponse({
-            'error': scene.error_message or 'This reconstruction did not complete successfully.',
-            **scene_payload(scene),
-        }, status=400)
-    if not scene.ply_file:
-        return JsonResponse({'error': 'No point-cloud file is attached to this reconstruction.'}, status=404)
-
-    ply_path = Path(settings.MEDIA_ROOT) / str(scene.ply_file)
-    if not ply_path.exists():
-        return JsonResponse({
-            'error': f'Point-cloud file is missing on disk: {scene.ply_file}',
-            **scene_payload(scene),
-        }, status=404)
-
-    try:
-        max_points = int(request.GET.get('max_points', 90000))
-    except (TypeError, ValueError):
-        max_points = 90000
-    max_points = max(1000, min(max_points, 200000))
-
-    try:
-        import numpy as np
-        import open3d as o3d
-
-        pcd = o3d.io.read_point_cloud(str(ply_path))
-        points_np = np.asarray(pcd.points, dtype=np.float32)
-        colors_np = np.asarray(pcd.colors, dtype=np.float32)
-    except Exception as exc:
-        return JsonResponse({
-            'error': f'Could not read point-cloud file: {exc}',
-            **scene_payload(scene),
-        }, status=500)
-
-    total_points = int(points_np.shape[0])
-    if total_points == 0:
-        return JsonResponse({
-            'error': 'The point-cloud file loaded, but it contains zero points.',
-            **scene_payload(scene),
-        }, status=422)
-
-    sample = _sample_indices(total_points, max_points)
-    render_points = points_np[sample] if sample is not None else points_np
-    has_colors = colors_np.shape[0] == total_points
-    render_colors = colors_np[sample] if sample is not None and has_colors else colors_np if has_colors else None
-
-    mins = points_np.min(axis=0)
-    maxs = points_np.max(axis=0)
-    center = (mins + maxs) / 2
-    size = maxs - mins
-
-    payload = scene_payload(scene)
-    payload.update({
-        'rendered_points': int(render_points.shape[0]),
-        'sampled': sample is not None,
-        'sample_step': sample.step if sample is not None else 1,
-        'has_colors': bool(has_colors),
-        'bounds': {
-            'min': [_safe_float(v) for v in mins],
-            'max': [_safe_float(v) for v in maxs],
-            'center': [_safe_float(v) for v in center],
-            'size': [_safe_float(v) for v in size],
-        },
-        'points': [[_safe_float(x), _safe_float(y), _safe_float(z)] for x, y, z in render_points],
-    })
-    if render_colors is not None:
-        payload['colors'] = [[_safe_float(r, 4), _safe_float(g, 4), _safe_float(b, 4)] for r, g, b in render_colors]
-
-    return JsonResponse(payload)
-
+# ─── reconstruct ─────────────────────────────────────────────────────────────
 
 @csrf_exempt
-def reconstruct_from_evidence(request, evidence_id):
+@require_POST
+def reconstruct_api(request):
     """
-    Trigger 3D reconstruction from an already-analyzed evidence image.
-    POST /reconstruction/from-evidence/<id>/
+    POST body (JSON): { "evidence_id": <int> }
+    Triggers (or re-triggers) reconstruction for an evidence image.
     """
-    from evidence.models import Evidence
-
-    evidence = get_object_or_404(Evidence, pk=evidence_id)
-    image_path = Path(settings.MEDIA_ROOT) / str(evidence.image)
-
-    detections = evidence.get_detections()
-
     try:
-        result = reconstruct_scene(
-            image_path  = image_path,
-            detections  = detections,
-            output_dir  = Path(settings.MEDIA_ROOT) / 'point_clouds',
-            density     = 2,
-        )
-        scene = SceneReconstruction.objects.create(
-            case=evidence.case,
-            evidence=evidence,
-            scene_name=f"Scene from evidence #{evidence.id}",
-            ply_file=f"point_clouds/{result['ply_name']}",
-            total_points=result['num_points'],
-            num_clusters=len(detections),
-            success=True,
-        )
-        data = scene_payload(scene)
-        data['detections'] = detections
-        return JsonResponse(data)
-    except Exception as exc:
-        scene = SceneReconstruction.objects.create(
-            case=evidence.case,
-            evidence=evidence,
-            scene_name=f"Failed scene from evidence #{evidence.id}",
-            success=False,
-            error_message=str(exc),
-        )
-        return JsonResponse({'error': str(exc), **scene_payload(scene)}, status=500)
+        body = json.loads(request.body)
+        ev_id = int(body["evidence_id"])
+    except (KeyError, ValueError, json.JSONDecodeError) as exc:
+        return JsonResponse({"error": f"Bad request: {exc}"}, status=400)
 
+    evidence = get_object_or_404(Evidence, pk=ev_id)
 
-@csrf_exempt  
-def reconstruct_direct(request):
-    """
-    Upload image directly and get 3D reconstruction.
-    POST /reconstruction/direct/
-    """
-    if request.method == 'POST' and request.content_type and 'application/json' in request.content_type:
+    if not evidence.file:
+        return JsonResponse({"error": "Evidence has no file attached."}, status=400)
+
+    image_path = _media_path(evidence.file)
+    if not image_path or not Path(image_path).exists():
+        return JsonResponse({"error": f"Evidence file not found: {image_path}"}, status=400)
+
+    if evidence.case_id is None:
+        return JsonResponse({"error": "Evidence must belong to a case before 3D reconstruction."}, status=400)
+
+    # Re-use or create SceneReconstruction record
+    scene, _ = SceneReconstruction.objects.get_or_create(
+        evidence=evidence,
+        defaults={"case": evidence.case, "scene_name": evidence.original_filename or ""},
+    )
+    scene.success = False
+    scene.error_message = ""
+    scene.save()
+
+    paths = _out_paths(scene.pk)
+    for output_path in paths.values():
         try:
-            body = json.loads(request.body.decode('utf-8') or '{}')
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'Invalid JSON'}, status=400)
-        evidence_id = body.get('evidence_id')
-        if evidence_id:
-            return reconstruct_from_evidence(request, evidence_id)
-        return JsonResponse({'error': 'evidence_id is required'}, status=400)
-
-    if request.method != 'POST' or 'image' not in request.FILES:
-        return render(request, 'index.html')
-
-    img_file  = request.FILES['image']
-    upload_dir = Path(settings.MEDIA_ROOT) / 'temp_reconstruction'
-    upload_dir.mkdir(parents=True, exist_ok=True)
-
-    save_path = upload_dir / img_file.name
-    with open(save_path, 'wb+') as f:
-        for chunk in img_file.chunks():
-            f.write(chunk)
+            Path(output_path).unlink(missing_ok=True)
+        except Exception:
+            log.warning("Could not remove previous reconstruction output: %s", output_path)
 
     try:
-        result = reconstruct_scene(
-            image_path = save_path,
-            detections = None,
-            output_dir = Path(settings.MEDIA_ROOT) / 'point_clouds',
-            density    = 2,
+        meta = build_scene(
+            image_path = image_path,
+            glb_out    = paths["glb"],
+            ply_out    = paths["ply"],
+            depth_out  = paths["depth"],
         )
-        return JsonResponse({
-            'ply_url':      f"/media/point_clouds/{result['ply_name']}",
-            'num_points':   result['num_points'],
-            'total_points': result['num_points'],
-            'num_clusters': 0,
-        })
     except Exception as exc:
-        return JsonResponse({'error': str(exc)}, status=500)
+        log.exception("build_scene failed for evidence %d", ev_id)
+        scene.error_message = str(exc)
+        scene.save()
+        return JsonResponse({"error": str(exc)}, status=500)
+
+    # persist relative paths (relative to MEDIA_ROOT)
+    media_root = Path(settings.MEDIA_ROOT)
+
+    def _rel(p: str) -> str:
+        return str(Path(p).relative_to(media_root))
+
+    mesh_type = None
+    if meta.get("glb_ok") and Path(paths["glb"]).exists():
+        scene.ply_file = _rel(paths["glb"])           # reuse ply_file field for GLB
+        mesh_type = "glb"
+    elif meta.get("ply_ok") and Path(paths["ply"]).exists():
+        scene.ply_file = _rel(paths["ply"])
+        mesh_type = "ply"
+    else:
+        scene.error_message = "Reconstruction finished but did not produce a GLB or PLY mesh."
+        scene.success = False
+        scene.save(update_fields=["error_message", "success"])
+        return JsonResponse({"error": scene.error_message, "scene_id": scene.pk}, status=500)
+
+    if Path(paths["depth"]).exists():
+        scene.depth_map = _rel(paths["depth"])
+
+    scene.total_points  = meta["total_points"]
+    scene.num_clusters  = meta["num_clusters"]
+    scene.clusters_json = meta["clusters"]
+    scene.success       = True
+    scene.save()
+
+    mesh_url = _media_url(scene.ply_file)
+    depth_url = _media_url(scene.depth_map)
+
+    return JsonResponse({
+        "scene_id":     scene.pk,
+        "total_points": scene.total_points,
+        "num_clusters": scene.num_clusters,
+        "clusters":     scene.clusters_json,
+        "mesh_url":     mesh_url,
+        "mesh_type":    mesh_type,
+        "ply_url":      mesh_url,
+        "depth_url":    depth_url,
+        "glb_ok":       meta.get("glb_ok", False),
+        "ply_ok":       meta.get("ply_ok", False),
+        "success":      True,
+    })
 
 
-def reconstruction_list(request):
-    case_id = request.GET.get('case_id')
-    scenes = SceneReconstruction.objects.filter(success=True)
+# ─── list ─────────────────────────────────────────────────────────────────────
+
+def reconstructions_api(request):
+    """Return JSON list of all scene records (latest first)."""
+    scenes = SceneReconstruction.objects.select_related("evidence", "case")
+    case_id = request.GET.get("case_id")
     if case_id:
         scenes = scenes.filter(case_id=case_id)
-    return JsonResponse([scene_payload(scene) for scene in scenes], safe=False)
+    scenes = scenes.order_by("-created_at")[:50]
+    data = []
+    for s in scenes:
+        mesh_url = _media_url(s.ply_file)
+        mesh_type = "ply" if mesh_url and mesh_url.lower().endswith(".ply") else "glb"
+        mesh_size_mb = 0
+        mesh_path = _media_path(s.ply_file)
+        if mesh_path and Path(mesh_path).exists():
+            mesh_size_mb = round(Path(mesh_path).stat().st_size / 1_048_576, 2)
+        data.append({
+            "id":           s.pk,
+            "case_id":      s.case_id,
+            "evidence_id":  s.evidence_id,
+            "scene_name":   s.scene_name,
+            "total_points": s.total_points,
+            "num_clusters": s.num_clusters,
+            "success":      s.success,
+            "created_at":   s.created_at.isoformat(),
+            "mesh_url":     mesh_url,
+            "mesh_type":    mesh_type,
+            "ply_url":      mesh_url,
+            "ply_size_mb":  mesh_size_mb,
+        })
+    return JsonResponse({"reconstructions": data})
 
 
-def scene_viewer(request, scene_id=None):
-    """Render the Three.js 3D viewer."""
-    context = {'scene_id': scene_id}
-    if scene_id:
-        scene = get_object_or_404(SceneReconstruction, pk=scene_id)
-        context['scene'] = scene
-        context['ply_url'] = f"/media/{scene.ply_file}"
-    return render(request, 'index.html', context)
+# ─── scene data ───────────────────────────────────────────────────────────────
+
+def reconstruction_scene_data_api(request, scene_id: int):
+    """Return metadata + file URLs for a specific scene."""
+    scene = get_object_or_404(SceneReconstruction, pk=scene_id)
+
+    mesh_url  = _media_url(scene.ply_file)
+    depth_url = _media_url(scene.depth_map)
+
+    # Detect whether stored file is GLB or PLY
+    mesh_type = "glb"
+    if mesh_url and mesh_url.lower().endswith(".ply"):
+        mesh_type = "ply"
+
+    return JsonResponse({
+        "id":           scene.pk,
+        "scene_name":   scene.scene_name,
+        "total_points": scene.total_points,
+        "num_clusters": scene.num_clusters,
+        "clusters":     scene.clusters_json,
+        "mesh_url":     mesh_url,
+        "mesh_type":    mesh_type,
+        "depth_url":    depth_url,
+        "success":      scene.success,
+        "error":        scene.error_message,
+    })
+
+
+# ─── viewer page ──────────────────────────────────────────────────────────────
+
+def reconstruction_view(request, evidence_id: int):
+    """Render the 3D viewer template for a given evidence item."""
+    evidence = get_object_or_404(Evidence, pk=evidence_id)
+    scene = SceneReconstruction.objects.filter(
+        evidence=evidence,
+        success=True,
+        ply_file__gt="",
+    ).order_by("-created_at").first()
+
+    mesh_url  = None
+    mesh_type = "glb"
+    depth_url = None
+    clusters  = []
+
+    if scene and scene.success:
+        mesh_url  = _media_url(scene.ply_file)
+        depth_url = _media_url(scene.depth_map)
+        clusters  = scene.clusters_json or []
+        if mesh_url and mesh_url.lower().endswith(".ply"):
+            mesh_type = "ply"
+
+    return render(request, "reconstruction/viewer.html", {
+        "evidence":   evidence,
+        "scene":      scene,
+        "mesh_url":   mesh_url,
+        "mesh_type":  mesh_type,
+        "depth_url":  depth_url,
+        "clusters":   json.dumps(clusters),
+        "scene_id":   scene.pk if scene else None,
+    })
+
+
+# ─── evidence data shortcut ───────────────────────────────────────────────────
+
+def reconstruction_data_api(request, evidence_id: int):
+    """Return the latest reconstruction data for a given evidence item."""
+    evidence = get_object_or_404(Evidence, pk=evidence_id)
+    scene = SceneReconstruction.objects.filter(
+        evidence=evidence,
+        success=True,
+        ply_file__gt="",
+    ).order_by("-created_at").first()
+
+    if not scene:
+        return JsonResponse({"error": "No reconstruction found."}, status=404)
+
+    return reconstruction_scene_data_api(request, scene.pk)
