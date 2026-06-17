@@ -111,3 +111,7 @@ runs/
 *.log
 __pycache__/
 *.pyc
+
+.venv_forensic/
+*/.venv_forensic/
+forensic_django/django_app/.venv_forensic/

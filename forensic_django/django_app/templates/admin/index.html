@@ -1,0 +1,343 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  :root {
+    --admin-bg: #020617;
+    --admin-card: rgba(15, 23, 42, 0.92);
+    --admin-border: rgba(56, 189, 248, 0.18);
+    --admin-text: #e5edf8;
+    --admin-muted: #94a3b8;
+    --admin-cyan: #38bdf8;
+    --admin-blue: #2563eb;
+    --admin-green: #22c55e;
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 20% 20%, rgba(14,165,233,0.18), transparent 28%),
+      radial-gradient(circle at 85% 80%, rgba(37,99,235,0.20), transparent 30%),
+      linear-gradient(135deg, #020617, #07111f 45%, #020617) !important;
+    color: var(--admin-text) !important;
+  }
+
+  #header {
+    background: rgba(2, 6, 23, 0.96) !important;
+    border-bottom: 1px solid var(--admin-border);
+    box-shadow: 0 10px 35px rgba(0,0,0,0.35);
+  }
+
+  #content {
+    padding: 28px !important;
+  }
+
+  .forensic-admin-hero {
+    border: 1px solid var(--admin-border);
+    background:
+      linear-gradient(135deg, rgba(14,165,233,0.16), rgba(37,99,235,0.08)),
+      rgba(15,23,42,0.88);
+    border-radius: 24px;
+    padding: 32px;
+    margin-bottom: 26px;
+    box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(34,211,238,0.10);
+    border: 1px solid rgba(34,211,238,0.25);
+    color: #67e8f9;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    font-weight: 700;
+  }
+
+  .forensic-admin-hero h1 {
+    color: #f8fafc;
+    font-size: 34px;
+    margin: 0 0 8px;
+  }
+
+  .forensic-admin-hero h1 span {
+    color: var(--admin-cyan);
+  }
+
+  .forensic-admin-hero p {
+    color: var(--admin-muted);
+    font-size: 15px;
+    max-width: 760px;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .admin-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 26px;
+  }
+
+  .admin-stat-card {
+    background: var(--admin-card);
+    border: 1px solid rgba(148,163,184,0.14);
+    border-radius: 18px;
+    padding: 20px;
+    box-shadow: 0 18px 45px rgba(0,0,0,0.20);
+  }
+
+  .admin-stat-card small {
+    color: var(--admin-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .admin-stat-card h2 {
+    color: #f8fafc;
+    margin: 8px 0 0;
+    font-size: 26px;
+  }
+
+  .admin-main-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 18px;
+  }
+
+  .admin-panel {
+    background: var(--admin-card);
+    border: 1px solid rgba(148,163,184,0.14);
+    border-radius: 20px;
+    padding: 22px;
+    box-shadow: 0 18px 45px rgba(0,0,0,0.20);
+  }
+
+  .admin-panel h2 {
+    color: #f8fafc;
+    margin-top: 0;
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+
+  .app-list-custom {
+    display: grid;
+    gap: 14px;
+  }
+
+  .app-card {
+    border: 1px solid rgba(148,163,184,0.14);
+    background: rgba(2,6,23,0.45);
+    border-radius: 16px;
+    padding: 16px;
+  }
+
+  .app-card h3 {
+    margin: 0 0 12px;
+    color: var(--admin-cyan);
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .model-links {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .model-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(15,23,42,0.75);
+    border: 1px solid rgba(56,189,248,0.12);
+    border-radius: 12px;
+    padding: 12px 14px;
+    color: #dbeafe !important;
+    text-decoration: none;
+    transition: 0.2s;
+  }
+
+  .model-link:hover {
+    border-color: rgba(56,189,248,0.35);
+    background: rgba(14,165,233,0.10);
+    transform: translateY(-2px);
+  }
+
+  .quick-link {
+    display: block;
+    padding: 14px 16px;
+    border-radius: 14px;
+    color: #dbeafe !important;
+    text-decoration: none;
+    background: rgba(2,6,23,0.50);
+    border: 1px solid rgba(148,163,184,0.14);
+    margin-bottom: 12px;
+    transition: 0.2s;
+  }
+
+  .quick-link:hover {
+    background: rgba(14,165,233,0.10);
+    border-color: rgba(56,189,248,0.30);
+  }
+
+  .quick-link span {
+    display: block;
+    color: var(--admin-muted);
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  .system-status {
+    margin-top: 18px;
+  }
+
+  .status-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(148,163,184,0.12);
+    color: var(--admin-muted);
+  }
+
+  .status-row strong {
+    color: #86efac;
+    font-size: 12px;
+  }
+
+  #content-related {
+    display: none;
+  }
+
+  @media(max-width: 1000px) {
+    .admin-stats,
+    .admin-main-grid,
+    .model-links {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="forensic-admin-hero">
+  <div class="hero-badge">● Secure Admin Workspace</div>
+  <h1>Forensic <span>Administration Panel</span></h1>
+  <p>
+    Manage users, forensic cases, evidence records, AI detection data, reports,
+    and system modules from a secure administrative control center.
+  </p>
+</div>
+
+<div class="admin-stats">
+  <div class="admin-stat-card">
+    <small>Access Mode</small>
+    <h2>Admin</h2>
+  </div>
+
+  <div class="admin-stat-card">
+    <small>System Status</small>
+    <h2>Online</h2>
+  </div>
+
+  <div class="admin-stat-card">
+    <small>Security</small>
+    <h2>Active</h2>
+  </div>
+
+  <div class="admin-stat-card">
+    <small>AI Module</small>
+    <h2>Ready</h2>
+  </div>
+</div>
+
+<div class="admin-main-grid">
+
+  <div class="admin-panel">
+    <h2>Database Management</h2>
+
+    <div class="app-list-custom">
+      {% if app_list %}
+        {% for app in app_list %}
+          <div class="app-card">
+            <h3>{{ app.name }}</h3>
+
+            <div class="model-links">
+              {% for model in app.models %}
+                {% if model.admin_url %}
+                  <a href="{{ model.admin_url }}" class="model-link">
+                    <span>{{ model.name }}</span>
+                    <span>Open →</span>
+                  </a>
+                {% else %}
+                  <div class="model-link">
+                    <span>{{ model.name }}</span>
+                    <span>No access</span>
+                  </div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <p>No admin modules available.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="admin-panel">
+    <h2>Quick Actions</h2>
+
+    <a href="/" class="quick-link">
+      🏠 Open Project Dashboard
+      <span>Go to Forensic Command Center</span>
+    </a>
+
+    <a href="/admin/auth/user/" class="quick-link">
+      👤 Manage Users
+      <span>Add, edit, or remove users</span>
+    </a>
+
+    <a href="/admin/auth/group/" class="quick-link">
+      🛡️ Manage Roles
+      <span>Control user groups and permissions</span>
+    </a>
+
+    <div class="system-status">
+      <h2>System Status</h2>
+
+      <div class="status-row">
+        <span>Admin Authentication</span>
+        <strong>ACTIVE</strong>
+      </div>
+
+      <div class="status-row">
+        <span>Case Registry</span>
+        <strong>READY</strong>
+      </div>
+
+      <div class="status-row">
+        <span>Evidence Storage</span>
+        <strong>READY</strong>
+      </div>
+
+      <div class="status-row">
+        <span>AI Detection Engine</span>
+        <strong>ONLINE</strong>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}

@@ -3,169 +3,423 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Request Access – Forensic 3D</title>
+<title>Request Access | Forensic AI System</title>
+
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
   body {
     min-height: 100vh;
-    background: #0d1117;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background:
+      radial-gradient(circle at 20% 20%, rgba(14,165,233,0.22), transparent 30%),
+      radial-gradient(circle at 80% 80%, rgba(37,99,235,0.22), transparent 30%),
+      linear-gradient(135deg, #020617, #07111f 45%, #020617);
+    color: #e5edf8;
+    padding: 28px;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 42px 42px;
+    pointer-events: none;
+  }
+
+  .register-wrapper {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 1120px;
+    margin: 0 auto;
+    min-height: calc(100vh - 56px);
+    display: grid;
+    grid-template-columns: 0.9fr 1.1fr;
+    border-radius: 28px;
+    overflow: hidden;
+    background: rgba(15,23,42,0.84);
+    border: 1px solid rgba(148,163,184,0.16);
+    box-shadow: 0 30px 90px rgba(0,0,0,0.55);
+    backdrop-filter: blur(18px);
+  }
+
+  .info-panel {
+    padding: 46px;
+    background:
+      linear-gradient(135deg, rgba(14,165,233,0.16), rgba(37,99,235,0.08)),
+      linear-gradient(180deg, #081827, #020617);
+    border-right: 1px solid rgba(148,163,184,0.14);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+    border-radius: 999px;
+    background: rgba(34,211,238,0.10);
+    border: 1px solid rgba(34,211,238,0.26);
+    color: #67e8f9;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 28px;
+  }
+
+  .logo-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, #0ea5e9, #2563eb);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    color: #e6edf3;
-    padding: 24px;
+    font-size: 34px;
+    box-shadow: 0 0 35px rgba(14,165,233,0.45);
+    margin-bottom: 24px;
   }
-  .card {
-    background: #161b22;
-    border: 1px solid #21262d;
-    border-radius: 12px;
-    padding: 40px 36px;
-    width: 100%;
-    max-width: 560px;
-    box-shadow: 0 8px 32px rgba(0,0,0,.5);
+
+  .info-panel h1 {
+    font-size: 40px;
+    line-height: 1.1;
+    margin-bottom: 16px;
+    color: #f8fafc;
   }
-  .logo { text-align: center; margin-bottom: 28px; }
-  .logo h1 { font-size: 1.6rem; color: #3b82f6; letter-spacing: 2px; }
-  .logo p  { font-size: .8rem; color: #8b949e; margin-top: 4px; }
-  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .form-group { margin-bottom: 14px; }
-  label { display: block; font-size: .82rem; color: #8b949e; margin-bottom: 5px; text-transform: uppercase; letter-spacing: .5px; }
-  input, select {
-    width: 100%;
-    background: #0d1117;
-    border: 1px solid #30363d;
-    border-radius: 8px;
-    padding: 10px 14px;
-    color: #e6edf3;
-    font-size: .9rem;
-    outline: none;
-    transition: border-color .2s;
+
+  .info-panel h1 span {
+    color: #38bdf8;
   }
-  input:focus, select:focus { border-color: #3b82f6; }
-  select option { background: #161b22; }
+
+  .info-panel p {
+    color: #9fb3ce;
+    line-height: 1.7;
+    font-size: 15px;
+    margin-bottom: 30px;
+  }
+
+  .feature-list {
+    display: grid;
+    gap: 14px;
+  }
+
+  .feature-item {
+    padding: 16px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.045);
+    border: 1px solid rgba(255,255,255,0.07);
+  }
+
+  .feature-item strong {
+    display: block;
+    color: #f8fafc;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+
+  .feature-item small {
+    color: #8aa4c8;
+    font-size: 12px;
+  }
+
+  .form-panel {
+    padding: 42px;
+    overflow-y: auto;
+  }
+
+  .form-header {
+    margin-bottom: 24px;
+  }
+
+  .form-header h2 {
+    font-size: 30px;
+    color: #f8fafc;
+    margin-bottom: 8px;
+  }
+
+  .form-header p {
+    color: #8aa4c8;
+    font-size: 14px;
+  }
+
+  .notice {
+    background: rgba(14,165,233,0.10);
+    border: 1px solid rgba(56,189,248,0.28);
+    border-radius: 14px;
+    padding: 13px 15px;
+    color: #93c5fd;
+    font-size: 14px;
+    margin-bottom: 22px;
+    line-height: 1.5;
+  }
+
   .section-label {
-    font-size: .7rem;
-    color: #3b82f6;
+    color: #67e8f9;
+    font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 1px;
-    margin: 20px 0 10px;
-    border-bottom: 1px solid #21262d;
-    padding-bottom: 6px;
+    font-weight: 800;
+    margin: 24px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(148,163,184,0.14);
   }
+
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  label {
+    display: block;
+    font-size: 12px;
+    color: #9fb3ce;
+    margin-bottom: 7px;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    font-weight: 700;
+  }
+
+  input,
+  select {
+    width: 100%;
+    background: rgba(2,6,23,0.72);
+    border: 1px solid rgba(148,163,184,0.18);
+    border-radius: 13px;
+    padding: 13px 14px;
+    color: #f8fafc;
+    font-size: 14px;
+    outline: none;
+    transition: 0.25s;
+  }
+
+  select option {
+    background: #0f172a;
+  }
+
+  input:focus,
+  select:focus {
+    border-color: #0ea5e9;
+    box-shadow: 0 0 0 4px rgba(14,165,233,0.14);
+  }
+
+  .errors {
+    color: #fca5a5;
+    font-size: 12px;
+    margin-top: 6px;
+  }
+
   .btn {
     width: 100%;
-    background: #3b82f6;
-    color: #fff;
     border: none;
-    border-radius: 8px;
-    padding: 12px;
-    font-size: 1rem;
-    font-weight: 600;
+    border-radius: 14px;
+    padding: 15px;
+    background: linear-gradient(135deg, #0ea5e9, #2563eb);
+    color: white;
+    font-size: 15px;
+    font-weight: 800;
     cursor: pointer;
-    margin-top: 10px;
-    transition: background .2s;
+    margin-top: 12px;
+    box-shadow: 0 14px 30px rgba(37,99,235,0.32);
+    transition: 0.25s;
   }
-  .btn:hover { background: #2563eb; }
-  .errors { color: #ef4444; font-size: .82rem; margin-top: 4px; }
-  .notice {
-    background: rgba(59,130,246,.08);
-    border: 1px solid #3b82f6;
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-size: .84rem;
-    color: #93c5fd;
-    margin-bottom: 18px;
+
+  .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 40px rgba(37,99,235,0.45);
   }
-  .footer { text-align: center; margin-top: 18px; font-size: .85rem; color: #8b949e; }
-  .footer a { color: #3b82f6; text-decoration: none; }
+
+  .footer {
+    text-align: center;
+    margin-top: 20px;
+    color: #8aa4c8;
+    font-size: 14px;
+  }
+
+  .footer a {
+    color: #38bdf8;
+    text-decoration: none;
+    font-weight: 700;
+  }
+
+  .footer a:hover {
+    text-decoration: underline;
+  }
+
+  @media (max-width: 900px) {
+    body {
+      padding: 18px;
+    }
+
+    .register-wrapper {
+      grid-template-columns: 1fr;
+    }
+
+    .info-panel {
+      display: none;
+    }
+
+    .form-panel {
+      padding: 30px 24px;
+    }
+
+    .row {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+  }
 </style>
 </head>
+
 <body>
-<div class="card">
-  <div class="logo">
-    <h1>FORENSIC 3D</h1>
-    <p>Request Account Access</p>
-  </div>
 
-  <div class="notice">
-    ℹ️ New accounts require admin approval before you can log in. You'll be notified once approved.
-  </div>
+<div class="register-wrapper">
 
-  <form method="post">
-    {% csrf_token %}
+  <section class="info-panel">
+    <div class="badge">● Secure Access Request</div>
 
-    <p class="section-label">Personal Information</p>
-    <div class="row">
-      <div class="form-group">
-        <label>First Name *</label>
-        <input type="text" name="first_name" value="{{ form.first_name.value|default:'' }}" required>
-        {% if form.first_name.errors %}<div class="errors">{{ form.first_name.errors.0 }}</div>{% endif %}
+    <div class="logo-icon">🧬</div>
+
+    <h1>Forensic <span>AI</span><br>Access Portal</h1>
+
+    <p>
+      Request access to the forensic investigation system for evidence detection,
+      case monitoring, AI analysis, and 3D crime scene reconstruction.
+    </p>
+
+    <div class="feature-list">
+      <div class="feature-item">
+        <strong>🔐 Admin Approval Required</strong>
+        <small>Every new user account is reviewed before system access.</small>
       </div>
-      <div class="form-group">
-        <label>Last Name *</label>
-        <input type="text" name="last_name" value="{{ form.last_name.value|default:'' }}" required>
-        {% if form.last_name.errors %}<div class="errors">{{ form.last_name.errors.0 }}</div>{% endif %}
+
+      <div class="feature-item">
+        <strong>🧾 Activity Monitoring</strong>
+        <small>User actions are recorded in the audit log for security.</small>
+      </div>
+
+      <div class="feature-item">
+        <strong>🔍 Forensic Detection Access</strong>
+        <small>Approved users can upload evidence and run AI analysis.</small>
       </div>
     </div>
-    <div class="form-group">
-      <label>Email Address *</label>
-      <input type="email" name="email" value="{{ form.email.value|default:'' }}" required>
-      {% if form.email.errors %}<div class="errors">{{ form.email.errors.0 }}</div>{% endif %}
+  </section>
+
+  <section class="form-panel">
+
+    <div class="form-header">
+      <h2>Request Account Access</h2>
+      <p>Complete the form below to register as an investigator, analyst, or viewer.</p>
     </div>
 
-    <p class="section-label">Login Credentials</p>
-    <div class="form-group">
-      <label>Username *</label>
-      <input type="text" name="username" value="{{ form.username.value|default:'' }}" required autocomplete="username">
-      {% if form.username.errors %}<div class="errors">{{ form.username.errors.0 }}</div>{% endif %}
-    </div>
-    <div class="row">
-      <div class="form-group">
-        <label>Password *</label>
-        <input type="password" name="password1" required autocomplete="new-password">
-        {% if form.password1.errors %}<div class="errors">{{ form.password1.errors.0 }}</div>{% endif %}
-      </div>
-      <div class="form-group">
-        <label>Confirm Password *</label>
-        <input type="password" name="password2" required autocomplete="new-password">
-        {% if form.password2.errors %}<div class="errors">{{ form.password2.errors.0 }}</div>{% endif %}
-      </div>
+    <div class="notice">
+      ℹ️ New accounts require admin approval before login. You can sign in only after approval.
     </div>
 
-    <p class="section-label">Professional Details</p>
-    <div class="row">
-      <div class="form-group">
-        <label>Role *</label>
-        <select name="role">
-          <option value="investigator">Investigator</option>
-          <option value="analyst">Analyst</option>
-          <option value="viewer">Viewer</option>
-        </select>
-        {% if form.role.errors %}<div class="errors">{{ form.role.errors.0 }}</div>{% endif %}
+    <form method="post">
+      {% csrf_token %}
+
+      <p class="section-label">Personal Information</p>
+
+      <div class="row">
+        <div class="form-group">
+          <label>First Name *</label>
+          <input type="text" name="first_name" value="{{ form.first_name.value|default:'' }}" required>
+          {% if form.first_name.errors %}<div class="errors">{{ form.first_name.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="form-group">
+          <label>Last Name *</label>
+          <input type="text" name="last_name" value="{{ form.last_name.value|default:'' }}" required>
+          {% if form.last_name.errors %}<div class="errors">{{ form.last_name.errors.0 }}</div>{% endif %}
+        </div>
       </div>
+
       <div class="form-group">
-        <label>Department</label>
-        <input type="text" name="department" value="{{ form.department.value|default:'' }}">
+        <label>Email Address *</label>
+        <input type="email" name="email" value="{{ form.email.value|default:'' }}" required>
+        {% if form.email.errors %}<div class="errors">{{ form.email.errors.0 }}</div>{% endif %}
       </div>
-    </div>
-    <div class="row">
+
+      <p class="section-label">Login Credentials</p>
+
       <div class="form-group">
-        <label>Phone Number</label>
-        <input type="text" name="phone" value="{{ form.phone.value|default:'' }}">
+        <label>Username *</label>
+        <input type="text" name="username" value="{{ form.username.value|default:'' }}" required autocomplete="username">
+        {% if form.username.errors %}<div class="errors">{{ form.username.errors.0 }}</div>{% endif %}
       </div>
-      <div class="form-group">
-        <label>Badge / ID Number</label>
-        <input type="text" name="badge_number" value="{{ form.badge_number.value|default:'' }}">
+
+      <div class="row">
+        <div class="form-group">
+          <label>Password *</label>
+          <input type="password" name="password1" required autocomplete="new-password">
+          {% if form.password1.errors %}<div class="errors">{{ form.password1.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="form-group">
+          <label>Confirm Password *</label>
+          <input type="password" name="password2" required autocomplete="new-password">
+          {% if form.password2.errors %}<div class="errors">{{ form.password2.errors.0 }}</div>{% endif %}
+        </div>
       </div>
+
+      <p class="section-label">Professional Details</p>
+
+      <div class="row">
+        <div class="form-group">
+          <label>Role *</label>
+          <select name="role">
+            <option value="investigator" {% if form.role.value == 'investigator' %}selected{% endif %}>Investigator</option>
+            <option value="analyst" {% if form.role.value == 'analyst' %}selected{% endif %}>Analyst</option>
+            <option value="viewer" {% if form.role.value == 'viewer' %}selected{% endif %}>Viewer</option>
+          </select>
+          {% if form.role.errors %}<div class="errors">{{ form.role.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="form-group">
+          <label>Department</label>
+          <input type="text" name="department" value="{{ form.department.value|default:'' }}">
+          {% if form.department.errors %}<div class="errors">{{ form.department.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="form-group">
+          <label>Phone Number</label>
+          <input type="text" name="phone" value="{{ form.phone.value|default:'' }}">
+          {% if form.phone.errors %}<div class="errors">{{ form.phone.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="form-group">
+          <label>Badge / ID Number</label>
+          <input type="text" name="badge_number" value="{{ form.badge_number.value|default:'' }}">
+          {% if form.badge_number.errors %}<div class="errors">{{ form.badge_number.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+
+      <button type="submit" class="btn">Submit Access Request</button>
+    </form>
+
+    <div class="footer">
+      Already have an account?
+      <a href="{% url 'login' %}">Sign In</a>
     </div>
 
-    <button type="submit" class="btn">Submit Access Request</button>
-  </form>
+  </section>
 
-  <div class="footer">
-    Already have an account? <a href="{% url 'login' %}">Sign In</a>
-  </div>
 </div>
+
 </body>
 </html>

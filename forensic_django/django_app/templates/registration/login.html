@@ -3,107 +3,355 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Login – Forensic 3D</title>
+<title>Login | Forensic AI</title>
+
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
   body {
     min-height: 100vh;
-    background: #0d1117;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: #020617;
+    color: #e5edf8;
+    overflow-x: hidden;
+  }
+
+  /* Top Navbar */
+  .navbar {
+    width: 100%;
+    height: 62px;
+    background: rgba(2, 6, 23, 0.95);
+    border-bottom: 1px solid rgba(56, 189, 248, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 70px;
+    position: fixed;
+    top: 0;
+    z-index: 10;
+  }
+
+  .brand {
+    font-size: 18px;
+    font-weight: 800;
+    color: #38bdf8;
+    letter-spacing: 1.5px;
+  }
+
+  .nav-actions a {
+    color: #dbeafe;
+    text-decoration: none;
+    margin-left: 14px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #0ea5e9, #2563eb);
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 0 18px rgba(14, 165, 233, 0.25);
+  }
+
+  /* Hero Section */
+  .hero {
+    min-height: 100vh;
+    padding-top: 62px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    color: #e6edf3;
+    background:
+      radial-gradient(circle at 25% 35%, rgba(14,165,233,0.25), transparent 9%),
+      radial-gradient(circle at 75% 45%, rgba(37,99,235,0.22), transparent 10%),
+      radial-gradient(circle at 50% 75%, rgba(34,211,238,0.14), transparent 12%),
+      linear-gradient(180deg, #020617, #07111f 55%, #020617);
+    position: relative;
   }
-  .card {
-    background: #161b22;
-    border: 1px solid #21262d;
-    border-radius: 12px;
-    padding: 40px 36px;
+
+  .hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 42px 42px;
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 2;
     width: 100%;
-    max-width: 420px;
-    box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    text-align: center;
+    padding: 30px;
   }
-  .logo { text-align: center; margin-bottom: 28px; }
-  .logo h1 { font-size: 1.8rem; color: #3b82f6; letter-spacing: 2px; }
-  .logo p  { font-size: .8rem; color: #8b949e; margin-top: 4px; }
-  .form-group { margin-bottom: 16px; }
-  label { display: block; font-size: .82rem; color: #8b949e; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
-  input[type=text], input[type=password] {
+
+  .main-title {
+    margin-bottom: 38px;
+  }
+
+  .main-title h1 {
+    font-size: 48px;
+    color: #38bdf8;
+    letter-spacing: 3px;
+    text-shadow: 0 0 25px rgba(56, 189, 248, 0.6);
+    margin-bottom: 10px;
+  }
+
+  .main-title h2 {
+    font-size: 22px;
+    color: #f8fafc;
+    margin-bottom: 10px;
+  }
+
+  .main-title p {
+    color: #9fb3ce;
+    font-size: 14px;
+  }
+
+  /* Login Card */
+  .login-card {
     width: 100%;
-    background: #0d1117;
-    border: 1px solid #30363d;
-    border-radius: 8px;
-    padding: 10px 14px;
-    color: #e6edf3;
-    font-size: .95rem;
-    outline: none;
-    transition: border-color .2s;
+    max-width: 620px;
+    margin: 0 auto;
+    background: rgba(15, 23, 42, 0.92);
+    border: 1px solid rgba(56, 189, 248, 0.16);
+    border-radius: 18px;
+    padding: 48px 56px;
+    box-shadow:
+      0 0 55px rgba(14,165,233,0.16),
+      0 30px 80px rgba(0,0,0,0.55);
+    backdrop-filter: blur(16px);
   }
-  input:focus { border-color: #3b82f6; }
-  .btn {
-    width: 100%;
-    background: #3b82f6;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    padding: 12px;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    margin-top: 8px;
-    transition: background .2s;
+
+  .login-card h3 {
+    font-size: 32px;
+    margin-bottom: 28px;
+    color: #f8fafc;
   }
-  .btn:hover { background: #2563eb; }
+
+  .error,
+  .message {
+    padding: 12px 14px;
+    border-radius: 10px;
+    margin-bottom: 18px;
+    font-size: 14px;
+    text-align: left;
+  }
+
   .error {
-    background: rgba(239,68,68,.1);
-    border: 1px solid #ef4444;
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-size: .88rem;
-    color: #ef4444;
-    margin-bottom: 16px;
+    background: rgba(239,68,68,0.12);
+    border: 1px solid rgba(239,68,68,0.45);
+    color: #fca5a5;
   }
-  .footer { text-align: center; margin-top: 20px; font-size: .85rem; color: #8b949e; }
-  .footer a { color: #3b82f6; text-decoration: none; }
-  .footer a:hover { text-decoration: underline; }
-  .divider { border: none; border-top: 1px solid #21262d; margin: 20px 0; }
+
+  .message {
+    background: rgba(34,197,94,0.12);
+    border: 1px solid rgba(34,197,94,0.45);
+    color: #86efac;
+  }
+
+  .form-group {
+    text-align: left;
+    margin-bottom: 22px;
+  }
+
+  label {
+    display: block;
+    color: #cbd5e1;
+    font-size: 16px;
+    margin-bottom: 9px;
+  }
+
+  input[type="text"],
+  input[type="password"] {
+    width: 100%;
+    background: rgba(2, 6, 23, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 10px;
+    padding: 16px 18px;
+    color: #f8fafc;
+    font-size: 16px;
+    outline: none;
+    transition: 0.25s;
+  }
+
+  input::placeholder {
+    color: #64748b;
+  }
+
+  input:focus {
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.12);
+  }
+
+  .login-btn {
+    width: 100%;
+    border: none;
+    border-radius: 10px;
+    padding: 16px;
+    background: linear-gradient(135deg, #0ea5e9, #2563eb);
+    color: white;
+    font-size: 17px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 6px;
+    transition: 0.25s;
+    box-shadow: 0 0 25px rgba(14,165,233,0.28);
+  }
+
+  .login-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 35px rgba(14,165,233,0.45);
+  }
+
+  .links {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 22px;
+    font-size: 15px;
+  }
+
+  .links a {
+    color: #38bdf8;
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .links a:hover {
+    text-decoration: underline;
+  }
+
+  .system-name {
+    margin-top: 24px;
+    color: #64748b;
+    letter-spacing: 1.5px;
+    font-size: 14px;
+  }
+
+  .home-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 90px;
+    background: linear-gradient(135deg, #0ea5e9, #2563eb);
+    color: white;
+    text-decoration: none;
+    padding: 18px 38px;
+    border-radius: 40px;
+    font-size: 20px;
+    font-weight: 700;
+    box-shadow: 0 0 35px rgba(14,165,233,0.45);
+  }
+
+  @media (max-width: 768px) {
+    .navbar {
+      padding: 0 20px;
+    }
+
+    .brand {
+      font-size: 15px;
+    }
+
+    .nav-actions a {
+      padding: 7px 10px;
+      font-size: 12px;
+    }
+
+    .main-title h1 {
+      font-size: 34px;
+    }
+
+    .login-card {
+      padding: 34px 24px;
+    }
+
+    .links {
+      flex-direction: column;
+      gap: 12px;
+      text-align: center;
+    }
+  }
 </style>
 </head>
+
 <body>
-<div class="card">
-  <div class="logo">
-    <h1>FORENSIC 3D</h1>
-    <p>Detection &amp; Analysis Platform</p>
+
+<header class="navbar">
+  <div class="brand">FORENSIC AI</div>
+
+  <div class="nav-actions">
+    <!-- <a href="{% url 'login' %}">Login</a> -->
+    <!-- <a href="{% url 'register' %}">Register</a> -->
   </div>
+</header>
 
-  {% if error %}
-    <div class="error">{{ error }}</div>
-  {% endif %}
+<section class="hero">
+  <div class="hero-content">
 
-  {% if messages %}
-    {% for message in messages %}
-      <div class="error" style="border-color:#22c55e;color:#22c55e;background:rgba(34,197,94,.1);">{{ message }}</div>
-    {% endfor %}
-  {% endif %}
-
-  <form method="post">
-    {% csrf_token %}
-    <div class="form-group">
-      <label for="username">Username</label>
-      <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+    <div class="main-title">
+      <h1>FORENSIC AI</h1>
+      <h2>3D Crime Scene Detection System</h2>
+      <p>AI-based evidence detection, crime scene analysis, and 3D reconstruction platform</p>
     </div>
-    <div class="form-group">
-      <label for="password">Password</label>
-      <input type="password" id="password" name="password" autocomplete="current-password" required>
-    </div>
-    <button type="submit" class="btn">Sign In</button>
-  </form>
 
-  <hr class="divider">
-  <div class="footer">
-    Don't have an account? <a href="{% url 'register' %}">Request Access</a>
+    <div class="login-card">
+      <h3>Login</h3>
+
+      {% if error %}
+        <div class="error">{{ error }}</div>
+      {% endif %}
+
+      {% if messages %}
+        {% for message in messages %}
+          <div class="message">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+
+      <form method="post">
+        {% csrf_token %}
+
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input
+            type="text"
+            id="username"
+            name="username"
+            placeholder="Enter username"
+            autocomplete="username"
+            required
+            autofocus
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            placeholder="Enter password"
+            autocomplete="current-password"
+            required
+          >
+        </div>
+
+        <button type="submit" class="login-btn">Login</button>
+      </form>
+
+      <div class="links">
+        <a href="{% url 'register' %}">Register</a>
+        <a href="#">Forgot Password?</a>
+      </div>
+
+      <div class="system-name">FORENSIC AI SYSTEM</div>
+    </div>
+
+    <a href="/" class="home-btn">🏠 Home</a>
+
   </div>
-</div>
+</section>
+
 </body>
 </html>

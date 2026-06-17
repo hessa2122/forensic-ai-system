@@ -2,23 +2,170 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Pending Approval – Forensic 3D</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pending Approval | Forensic AI System</title>
+
 <style>
-  body { background:#0d1117; color:#e6edf3; display:flex; align-items:center; justify-content:center; min-height:100vh; font-family:'Segoe UI',system-ui,sans-serif; }
-  .card { background:#161b22; border:1px solid #21262d; border-radius:12px; padding:40px 36px; max-width:440px; text-align:center; }
-  .icon { font-size:3rem; margin-bottom:16px; }
-  h2 { color:#f59e0b; margin-bottom:10px; }
-  p  { color:#8b949e; font-size:.9rem; line-height:1.6; }
-  a  { display:inline-block; margin-top:20px; color:#3b82f6; text-decoration:none; font-size:.9rem; }
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    min-height: 100vh;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background:
+      radial-gradient(circle at 20% 20%, rgba(14,165,233,0.22), transparent 30%),
+      radial-gradient(circle at 80% 80%, rgba(37,99,235,0.22), transparent 30%),
+      linear-gradient(135deg, #020617, #07111f 45%, #020617);
+    color: #e5edf8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 42px 42px;
+    pointer-events: none;
+  }
+
+  .pending-card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 540px;
+    background: rgba(15, 23, 42, 0.88);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 28px;
+    padding: 44px 38px;
+    text-align: center;
+    box-shadow: 0 30px 90px rgba(0,0,0,0.55);
+    backdrop-filter: blur(18px);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 13px;
+    border-radius: 999px;
+    background: rgba(245,158,11,0.10);
+    border: 1px solid rgba(245,158,11,0.30);
+    color: #fcd34d;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 20px;
+  }
+
+  .icon {
+    width: 86px;
+    height: 86px;
+    margin: 0 auto 22px;
+    border-radius: 26px;
+    background: linear-gradient(135deg, rgba(245,158,11,0.20), rgba(14,165,233,0.14));
+    border: 1px solid rgba(245,158,11,0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 42px;
+    box-shadow: 0 0 38px rgba(245,158,11,0.20);
+  }
+
+  h2 {
+    color: #f8fafc;
+    font-size: 30px;
+    margin-bottom: 12px;
+  }
+
+  h2 span {
+    color: #fcd34d;
+  }
+
+  p {
+    color: #9fb3ce;
+    font-size: 15px;
+    line-height: 1.7;
+    margin-bottom: 24px;
+  }
+
+  .info-box {
+    background: rgba(14,165,233,0.08);
+    border: 1px solid rgba(56,189,248,0.22);
+    border-radius: 16px;
+    padding: 15px;
+    color: #93c5fd;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 24px;
+  }
+
+  .btn {
+    width: 100%;
+    border: none;
+    border-radius: 14px;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, #0ea5e9, #2563eb);
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 14px 30px rgba(37,99,235,0.32);
+    transition: 0.25s;
+  }
+
+  .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 40px rgba(37,99,235,0.45);
+  }
+
+  .footer-note {
+    margin-top: 18px;
+    color: #64748b;
+    font-size: 12px;
+  }
 </style>
 </head>
+
 <body>
-<div class="card">
+
+<div class="pending-card">
+
+  <div class="badge">● Account Under Review</div>
+
   <div class="icon">⏳</div>
-  <h2>Awaiting Approval</h2>
-  <p>Your account is pending admin approval. You'll be able to access the system once an administrator reviews and activates your account.<br><br>
-     Please contact your system administrator if you need urgent access.</p>
-  <a href="{% url 'logout' %}">Sign Out</a>
+
+  <h2>Awaiting <span>Approval</span></h2>
+
+  <p>
+    Your account is pending admin approval. You will be able to access the
+    forensic detection system once an administrator reviews and activates your account.
+  </p>
+
+  <div class="info-box">
+    Please contact your system administrator if you need urgent access.
+    Until approval, your dashboard access will remain restricted.
+  </div>
+
+  <form action="{% url 'logout' %}" method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn">Sign Out</button>
+  </form>
+
+  <div class="footer-note">
+    Forensic AI System · Secure Account Verification
+  </div>
+
 </div>
+
 </body>
 </html>

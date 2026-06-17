@@ -3,152 +3,782 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Evidence - {{ evidence.original_filename }}</title>
+<title>Evidence | {{ evidence.original_filename }}</title>
+
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; min-height: 100vh; }
-  .nav { background: #111827; border-bottom: 1px solid #1f2937; padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
-  .nav a { color: #60a5fa; text-decoration: none; font-size: 13px; }
-  .nav h1 { font-size: 14px; font-weight: 600; color: #f1f5f9; }
-  .page { display: grid; grid-template-columns: 1fr 360px; gap: 20px; padding: 20px; max-width: 1400px; margin: 0 auto; }
-  .img-panel { background: #111827; border: 1px solid #1f2937; border-radius: 10px; overflow: hidden; }
-  .img-panel .img-wrap { position: relative; display: inline-block; width: 100%; }
-  .img-panel img { width: 100%; display: block; }
-  .bbox-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-  .bbox-rect { fill: none; stroke-width: 2; rx: 3; }
-  .bbox-label { font-size: 11px; font-weight: 700; paint-order: stroke; stroke-width: 3; stroke-linejoin: round; }
-  .img-actions { padding: 12px 16px; display: flex; gap: 8px; border-top: 1px solid #1f2937; flex-wrap: wrap; }
-  .btn { padding: 7px 14px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
-  .btn-primary { background: #3b82f6; color: white; }
-  .btn-primary:hover { background: #2563eb; }
-  .btn-secondary { background: #1f2937; color: #94a3b8; border: 1px solid #374151; }
-  .btn-secondary:hover { background: #374151; color: #f1f5f9; }
-  .btn-danger { background: #7f1d1d; color: #fca5a5; border: 1px solid #991b1b; }
-  .btn-danger:hover { background: #991b1b; }
-  .det-panel { display: flex; flex-direction: column; gap: 12px; }
-  .det-panel h2 { font-size: 13px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
-  .det-card { background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 12px 14px; cursor: pointer; transition: all 0.15s; border-left: 3px solid var(--clr, #6b7280); }
-  .det-card:hover { background: #1a2332; }
-  .det-card.active { background: #1a2332; border-color: var(--clr, #3b82f6); }
-  .det-card .label { font-size: 13px; font-weight: 700; color: var(--clr, #e2e8f0); text-transform: capitalize; }
-  .det-card .conf { font-size: 11px; color: #6b7280; margin-top: 2px; }
-  .det-card .sig { font-size: 10px; margin-top: 3px; font-weight: 600; }
-  .det-card .sig.high   { color: #f87171; }
-  .det-card .sig.medium { color: #fbbf24; }
-  .det-card .sig.low    { color: #6b7280; }
-  .det-card .desc { font-size: 11px; color: #9ca3af; margin-top: 5px; line-height: 1.4; }
-  .det-card .notes { font-size: 10px; color: #6b7280; margin-top: 4px; font-style: italic; }
-  .det-card .src { font-size: 10px; color: #4b5563; margin-top: 3px; }
-  .scene-box { background: #0f1923; border: 1px solid #1f2937; border-radius: 8px; padding: 14px; font-size: 12px; color: #6b7280; line-height: 1.6; }
-  .scene-box strong { color: #94a3b8; display: block; margin-bottom: 4px; }
-  .no-det { text-align: center; padding: 24px; color: #4b5563; font-size: 13px; }
-  .spinner { display: none; width: 16px; height: 16px; border: 2px solid #374151; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.7s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .sources-bar { display: flex; gap: 6px; flex-wrap: wrap; }
-  .src-badge { font-size: 10px; padding: 2px 8px; border-radius: 99px; background: #1e3a5f; color: #60a5fa; }
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    min-height: 100vh;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background:
+      radial-gradient(circle at 20% 20%, rgba(14,165,233,0.18), transparent 28%),
+      radial-gradient(circle at 85% 80%, rgba(37,99,235,0.22), transparent 30%),
+      linear-gradient(135deg, #020617, #07111f 45%, #020617);
+    color: #e5edf8;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 42px 42px;
+    pointer-events: none;
+  }
+
+  .topbar {
+    height: 66px;
+    padding: 0 34px;
+    background: rgba(2, 6, 23, 0.94);
+    border-bottom: 1px solid rgba(56,189,248,0.16);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    backdrop-filter: blur(18px);
+    box-shadow: 0 12px 35px rgba(0,0,0,0.32);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #f8fafc;
+    font-size: 18px;
+    font-weight: 800;
+    text-decoration: none;
+    letter-spacing: 0.5px;
+  }
+
+  .brand-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #0ea5e9, #2563eb);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 28px rgba(14,165,233,0.42);
+  }
+
+  .top-links {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .top-links a {
+    color: #9fb3ce;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 9px 14px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    transition: 0.2s;
+  }
+
+  .top-links a:hover,
+  .top-links a.active {
+    background: rgba(14,165,233,0.10);
+    color: #38bdf8;
+    border-color: rgba(56,189,248,0.25);
+  }
+
+  .main {
+    position: relative;
+    z-index: 1;
+    max-width: 1450px;
+    margin: 0 auto;
+    padding: 28px 24px 34px;
+  }
+
+  .back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #38bdf8;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 800;
+    margin-bottom: 20px;
+  }
+
+  .back:hover {
+    text-decoration: underline;
+  }
+
+  .hero {
+    border: 1px solid rgba(56,189,248,0.18);
+    background:
+      linear-gradient(135deg, rgba(14,165,233,0.16), rgba(37,99,235,0.08)),
+      rgba(15,23,42,0.86);
+    border-radius: 24px;
+    padding: 24px;
+    margin-bottom: 22px;
+    box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+    backdrop-filter: blur(16px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: rgba(34,211,238,0.10);
+    border: 1px solid rgba(34,211,238,0.28);
+    color: #67e8f9;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-weight: 900;
+    margin-bottom: 10px;
+  }
+
+  .hero h1 {
+    font-size: 30px;
+    color: #f8fafc;
+    margin-bottom: 6px;
+    word-break: break-word;
+  }
+
+  .hero p {
+    color: #9fb3ce;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .hero-meta {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .meta-pill {
+    padding: 9px 13px;
+    border-radius: 999px;
+    background: rgba(2,6,23,0.45);
+    border: 1px solid rgba(148,163,184,0.15);
+    color: #cbd5e1;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .meta-pill strong {
+    color: #38bdf8;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 390px;
+    gap: 22px;
+    align-items: start;
+  }
+
+  .panel {
+    background: rgba(15,23,42,0.82);
+    border: 1px solid rgba(148,163,184,0.14);
+    border-radius: 22px;
+    box-shadow: 0 22px 60px rgba(0,0,0,0.28);
+    backdrop-filter: blur(14px);
+    overflow: hidden;
+  }
+
+  .viewer-header,
+  .side-header {
+    padding: 18px 20px;
+    border-bottom: 1px solid rgba(148,163,184,0.12);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .viewer-header h2,
+  .side-header h2 {
+    color: #f8fafc;
+    font-size: 18px;
+  }
+
+  .viewer-header span,
+  .side-header span {
+    color: #9fb3ce;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .image-stage {
+    padding: 18px;
+  }
+
+  .img-wrap {
+    position: relative;
+    width: 100%;
+    border-radius: 18px;
+    overflow: hidden;
+    border: 1px solid rgba(56,189,248,0.16);
+    background: rgba(2,6,23,0.72);
+  }
+
+  .img-wrap img {
+    width: 100%;
+    display: block;
+  }
+
+  .bbox-overlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .bbox-rect {
+    fill: none;
+    stroke-width: 2;
+    rx: 4;
+    transition: 0.2s;
+  }
+
+  .img-actions {
+    padding: 16px 18px 20px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    border-top: 1px solid rgba(148,163,184,0.12);
+  }
+
+  .btn {
+    border: none;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: 900;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: 0.2s;
+    font-family: inherit;
+  }
+
+  .btn:hover {
+    transform: translateY(-1px);
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, #0ea5e9, #2563eb);
+    color: #ffffff;
+    box-shadow: 0 14px 30px rgba(37,99,235,0.28);
+  }
+
+  .btn-secondary {
+    background: rgba(14,165,233,0.12);
+    color: #7dd3fc;
+    border: 1px solid rgba(14,165,233,0.30);
+  }
+
+  .btn-danger {
+    background: rgba(239,68,68,0.16);
+    color: #fca5a5;
+    border: 1px solid rgba(239,68,68,0.34);
+  }
+
+  .delete-form {
+    margin-left: auto;
+  }
+
+  .spinner {
+    display: none;
+    width: 15px;
+    height: 15px;
+    border: 2px solid rgba(255,255,255,0.25);
+    border-top-color: #38bdf8;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .summary-card {
+    background: rgba(15,23,42,0.82);
+    border: 1px solid rgba(148,163,184,0.14);
+    border-radius: 18px;
+    padding: 16px;
+    box-shadow: 0 18px 45px rgba(0,0,0,0.20);
+    backdrop-filter: blur(14px);
+  }
+
+  .summary-card small {
+    display: block;
+    color: #9fb3ce;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 800;
+    margin-bottom: 7px;
+  }
+
+  .summary-card h3 {
+    color: #f8fafc;
+    font-size: 24px;
+  }
+
+  .sources-bar {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+    padding: 0 20px 16px;
+  }
+
+  .src-badge {
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: rgba(14,165,233,0.12);
+    color: #7dd3fc;
+    border: 1px solid rgba(14,165,233,0.24);
+    font-weight: 800;
+  }
+
+  .scene-box {
+    margin: 0 20px 16px;
+    background: rgba(2,6,23,0.50);
+    border: 1px solid rgba(56,189,248,0.16);
+    border-radius: 16px;
+    padding: 15px;
+    color: #9fb3ce;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .scene-box strong {
+    color: #67e8f9;
+    display: block;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
+
+  #det-list {
+    padding: 0 20px 20px;
+    display: grid;
+    gap: 12px;
+    max-height: 650px;
+    overflow-y: auto;
+  }
+
+  #det-list::-webkit-scrollbar {
+    width: 7px;
+  }
+
+  #det-list::-webkit-scrollbar-thumb {
+    background: rgba(56,189,248,0.25);
+    border-radius: 999px;
+  }
+
+  .det-card {
+    background: rgba(2,6,23,0.50);
+    border: 1px solid rgba(148,163,184,0.14);
+    border-left: 4px solid var(--clr, #6b7280);
+    border-radius: 16px;
+    padding: 14px;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+
+  .det-card:hover,
+  .det-card.active {
+    background: rgba(14,165,233,0.07);
+    border-color: rgba(56,189,248,0.30);
+    transform: translateY(-1px);
+  }
+
+  .det-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .det-label {
+    color: var(--clr, #e2e8f0);
+    font-size: 15px;
+    font-weight: 900;
+    text-transform: capitalize;
+  }
+
+  .conf-pill {
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.06);
+    color: #dbeafe;
+    font-size: 11px;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  .det-meta {
+    color: #8aa4c8;
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+
+  .sig {
+    display: inline-flex;
+    padding: 5px 9px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+
+  .sig.high {
+    background: rgba(239,68,68,0.13);
+    color: #fca5a5;
+    border: 1px solid rgba(239,68,68,0.28);
+  }
+
+  .sig.medium {
+    background: rgba(245,158,11,0.13);
+    color: #fcd34d;
+    border: 1px solid rgba(245,158,11,0.28);
+  }
+
+  .sig.low {
+    background: rgba(148,163,184,0.10);
+    color: #cbd5e1;
+    border: 1px solid rgba(148,163,184,0.20);
+  }
+
+  .det-desc {
+    color: #9fb3ce;
+    font-size: 12px;
+    line-height: 1.5;
+    margin-bottom: 6px;
+  }
+
+  .det-notes {
+    color: #64748b;
+    font-size: 11px;
+    line-height: 1.5;
+    font-style: italic;
+    margin-bottom: 6px;
+  }
+
+  .det-src {
+    color: #64748b;
+    font-size: 11px;
+  }
+
+  .no-det {
+    text-align: center;
+    padding: 34px 18px;
+    color: #9fb3ce;
+    border: 1px dashed rgba(148,163,184,0.18);
+    border-radius: 18px;
+    background: rgba(2,6,23,0.35);
+  }
+
+  .no-det .icon {
+    font-size: 34px;
+    margin-bottom: 8px;
+  }
+
+  .no-det strong {
+    display: block;
+    color: #f8fafc;
+    margin-bottom: 5px;
+  }
+
+  @media (max-width: 1050px) {
+    .layout {
+      grid-template-columns: 1fr;
+    }
+
+    .side-panel {
+      order: 2;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .topbar {
+      height: auto;
+      padding: 16px;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .top-links {
+      flex-wrap: wrap;
+    }
+
+    .hero {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .hero-meta {
+      justify-content: flex-start;
+    }
+
+    .summary-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .delete-form,
+    .delete-form .btn,
+    .img-actions .btn {
+      width: 100%;
+      margin-left: 0;
+    }
+  }
 </style>
 </head>
+
 <body>
-<nav class="nav">
-  <a href="{% url 'evidence_list' evidence.case.id %}">Back to Case</a>
-  <h1>{{ evidence.original_filename }}</h1>
-  <span style="color:#4b5563;font-size:12px;">{{ evidence.created_at|date:"M d, Y H:i" }}</span>
-</nav>
-<div class="page">
-  <div class="img-panel">
-    <div class="img-wrap" id="img-wrap">
-      <img src="{{ evidence.file.url }}" id="ev-image" alt="{{ evidence.original_filename }}" onload="drawBboxes()">
-      <svg class="bbox-overlay" id="bbox-svg" viewBox="0 0 1 1" preserveAspectRatio="none"></svg>
-    </div>
-    <div class="img-actions">
-      <a href="{% url 'reconstruction_view' evidence.id %}" class="btn btn-primary">View in 3D</a>
-      <button class="btn btn-secondary" id="btn-reanalyze"><span class="spinner" id="spin"></span>Re-analyze</button>
-      <a href="{{ evidence.file.url }}" download class="btn btn-secondary">Download</a>
-      <form method="post" action="{% url 'delete_evidence' evidence.id %}" style="margin-left:auto" onsubmit="return confirm('Delete this evidence?')">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-danger">Delete</button>
-      </form>
-    </div>
+<header class="topbar">
+  <a class="brand" href="/">
+    <span class="brand-icon">🧬</span>
+    FORENSIC AI
+  </a>
+
+  <div class="top-links">
+    <a href="/">Dashboard</a>
+    <a href="{% url 'evidence_list' evidence.case.id %}" class="active">Evidence</a>
   </div>
-  <div class="det-panel">
+</header>
+
+<main class="main">
+
+  <a class="back" href="{% url 'evidence_list' evidence.case.id %}">← Back to Case Evidence</a>
+
+  <section class="hero">
     <div>
-      <h2>Detections <span style="color:#3b82f6">({{ detections|length }})</span></h2>
-      {% if detections %}
-        <div class="sources-bar" style="margin-top:6px">
-          {% for s in sources_used %}<span class="src-badge">{{ s }}</span>{% endfor %}
+      <div class="hero-badge">● Evidence Analysis Detail</div>
+      <h1>{{ evidence.original_filename }}</h1>
+      <p>
+        Review uploaded forensic evidence, detected objects, bounding boxes,
+        scene summary, and reconstruction options.
+      </p>
+    </div>
+
+    <div class="hero-meta">
+      <span class="meta-pill">Uploaded: <strong>{{ evidence.created_at|date:"M d, Y H:i" }}</strong></span>
+      <span class="meta-pill">Detections: <strong>{{ detections|length }}</strong></span>
+    </div>
+  </section>
+
+  <section class="layout">
+
+    <div class="panel viewer-panel">
+      <div class="viewer-header">
+        <div>
+          <h2>Evidence Viewer</h2>
+          <span>AI detection overlay with forensic bounding boxes</span>
         </div>
-      {% endif %}
+      </div>
+
+      <div class="image-stage">
+        <div class="img-wrap" id="img-wrap">
+          <img src="{{ evidence.file.url }}" id="ev-image" alt="{{ evidence.original_filename }}" onload="drawBboxes()">
+          <svg class="bbox-overlay" id="bbox-svg" viewBox="0 0 1 1" preserveAspectRatio="none"></svg>
+        </div>
+      </div>
+
+      <div class="img-actions">
+        <a href="{% url 'reconstruction_view' evidence.id %}" class="btn btn-primary">🌐 View in 3D</a>
+        <button class="btn btn-secondary" id="btn-reanalyze" type="button">
+          <span class="spinner" id="spin"></span>
+          🔍 Re-analyze
+        </button>
+        <a href="{{ evidence.file.url }}" download class="btn btn-secondary">⬇ Download</a>
+
+        <form method="post" action="{% url 'delete_evidence' evidence.id %}" class="delete-form" onsubmit="return confirm('Delete this evidence?')">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger">🗑 Delete</button>
+        </form>
+      </div>
     </div>
-    {% if scene_summary %}
-    <div class="scene-box">
-      <strong>Scene Summary</strong>
-      {{ scene_summary }}
-    </div>
-    {% endif %}
-    <div id="det-list">
-      {% if detections %}
-        {% for det in detections %}
-        <div class="det-card" style="--clr: {{ det.color }}" data-index="{{ forloop.counter0 }}" onclick="highlightDetection({{ forloop.counter0 }})">
-          <div class="label">{{ det.label }}</div>
-          <div class="conf">
-            {% if det.confidence %}{% widthratio det.confidence 1 100 %}% confidence{% endif %}
-            {% if det.location %} - {{ det.location }}{% endif %}
+
+    <aside class="side-panel">
+
+      <div class="summary-grid">
+        <div class="summary-card">
+          <small>Total Detections</small>
+          <h3>{{ detections|length }}</h3>
+        </div>
+
+        <div class="summary-card">
+          <small>AI Status</small>
+          <h3 style="color:#86efac;">Ready</h3>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="side-header">
+          <div>
+            <h2>Detection Results</h2>
+            <span>Objects identified in uploaded evidence</span>
           </div>
-          <div class="sig {{ det.forensic_significance }}">{{ det.forensic_significance|upper }} significance</div>
-          {% if det.description %}<div class="desc">{{ det.description }}</div>{% endif %}
-          {% if det.notes %}<div class="notes">{{ det.notes }}</div>{% endif %}
-          <div class="src">Source: {{ det.source }}</div>
         </div>
-        {% endfor %}
-      {% else %}
-        <div class="no-det">
-          <div style="font-size:32px;margin-bottom:8px">Search</div>
-          No detections yet.<br>Click Re-analyze to run the AI pipeline.
+
+        {% if detections %}
+          <div class="sources-bar">
+            {% for s in sources_used %}
+              <span class="src-badge">{{ s }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        {% if scene_summary %}
+          <div class="scene-box">
+            <strong>Scene Summary</strong>
+            {{ scene_summary }}
+          </div>
+        {% endif %}
+
+        <div id="det-list">
+          {% if detections %}
+            {% for det in detections %}
+              <div class="det-card" style="--clr: {{ det.color }}" data-index="{{ forloop.counter0 }}" onclick="highlightDetection({{ forloop.counter0 }})">
+                <div class="det-top">
+                  <div class="det-label">{{ det.label }}</div>
+                  {% if det.confidence %}
+                    <div class="conf-pill">{% widthratio det.confidence 1 100 %}%</div>
+                  {% endif %}
+                </div>
+
+                {% if det.location %}
+                  <div class="det-meta">Location: {{ det.location }}</div>
+                {% endif %}
+
+                <div class="sig {{ det.forensic_significance }}">
+                  {{ det.forensic_significance|upper }} significance
+                </div>
+
+                {% if det.description %}
+                  <div class="det-desc">{{ det.description }}</div>
+                {% endif %}
+
+                {% if det.notes %}
+                  <div class="det-notes">{{ det.notes }}</div>
+                {% endif %}
+
+                <div class="det-src">Source: {{ det.source }}</div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="no-det">
+              <div class="icon">🔎</div>
+              <strong>No detections yet</strong>
+              Click Re-analyze to run the AI evidence detection pipeline.
+            </div>
+          {% endif %}
         </div>
-      {% endif %}
-    </div>
-  </div>
-</div>
+      </div>
+    </aside>
+
+  </section>
+
+</main>
+
 <script>
 const DETECTIONS = {{ detections_json|safe }};
-let naturalW = 0, naturalH = 0;
+let naturalW = 0;
+let naturalH = 0;
 let activeIndex = null;
 
 function drawBboxes() {
   const img = document.getElementById('ev-image');
   naturalW = img.naturalWidth;
   naturalH = img.naturalHeight;
+
   const svg = document.getElementById('bbox-svg');
   svg.setAttribute('viewBox', `0 0 ${naturalW} ${naturalH}`);
   svg.innerHTML = '';
+
   DETECTIONS.forEach((det, i) => {
     if (!det.bbox) return;
+
     const [x1, y1, x2, y2] = det.bbox;
-    const color = det.color || '#6b7280';
-    const w = x2 - x1, h = y2 - y1;
+    const color = det.color || '#38bdf8';
+    const w = x2 - x1;
+    const h = y2 - y1;
+
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    rect.setAttribute('x', x1); rect.setAttribute('y', y1);
-    rect.setAttribute('width', w); rect.setAttribute('height', h);
-    rect.setAttribute('stroke', color); rect.setAttribute('fill', color + '20');
-    rect.setAttribute('stroke-width', '2'); rect.setAttribute('rx', '3');
+    rect.setAttribute('x', x1);
+    rect.setAttribute('y', y1);
+    rect.setAttribute('width', w);
+    rect.setAttribute('height', h);
+    rect.setAttribute('stroke', color);
+    rect.setAttribute('fill', color + '22');
+    rect.setAttribute('stroke-width', '2');
+    rect.setAttribute('rx', '4');
     rect.classList.add('bbox-rect');
     rect.dataset.index = i;
     rect.style.cursor = 'pointer';
     rect.addEventListener('click', () => highlightDetection(i));
     svg.appendChild(rect);
+
     const conf = det.confidence ? ` ${Math.round(det.confidence * 100)}%` : '';
     const txt = `${det.label}${conf}`;
-    const lblH = 18, lblW = txt.length * 7 + 8;
+    const lblH = 20;
+    const lblW = txt.length * 7.4 + 12;
     const lblY = y1 > lblH ? y1 - lblH : y1 + h;
+
     const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    bg.setAttribute('x', x1); bg.setAttribute('y', lblY);
-    bg.setAttribute('width', lblW); bg.setAttribute('height', lblH);
-    bg.setAttribute('fill', color); bg.setAttribute('rx', '3');
+    bg.setAttribute('x', x1);
+    bg.setAttribute('y', lblY);
+    bg.setAttribute('width', lblW);
+    bg.setAttribute('height', lblH);
+    bg.setAttribute('fill', color);
+    bg.setAttribute('rx', '5');
     svg.appendChild(bg);
+
     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.setAttribute('x', x1 + 4); text.setAttribute('y', lblY + 12);
-    text.setAttribute('fill', 'white'); text.setAttribute('font-size', '11');
-    text.setAttribute('font-weight', '700'); text.setAttribute('font-family', 'system-ui');
+    text.setAttribute('x', x1 + 6);
+    text.setAttribute('y', lblY + 14);
+    text.setAttribute('fill', 'white');
+    text.setAttribute('font-size', '11');
+    text.setAttribute('font-weight', '800');
+    text.setAttribute('font-family', 'system-ui');
     text.textContent = txt;
     svg.appendChild(text);
   });
@@ -158,36 +788,55 @@ function highlightDetection(index) {
   if (activeIndex !== null) {
     const prev = document.querySelector(`.det-card[data-index="${activeIndex}"]`);
     if (prev) prev.classList.remove('active');
+
     const prevRect = document.querySelector(`rect.bbox-rect[data-index="${activeIndex}"]`);
     if (prevRect) prevRect.setAttribute('stroke-width', '2');
   }
+
   activeIndex = index;
+
   const card = document.querySelector(`.det-card[data-index="${index}"]`);
-  if (card) { card.classList.add('active'); card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+  if (card) {
+    card.classList.add('active');
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
   const rect = document.querySelector(`rect.bbox-rect[data-index="${index}"]`);
   if (rect) rect.setAttribute('stroke-width', '4');
 }
 
-document.getElementById('btn-reanalyze').addEventListener('click', async function() {
-  const spin = document.getElementById('spin');
-  this.disabled = true;
-  spin.style.display = 'inline-block';
-  try {
-    const resp = await fetch("{% url 'reanalyze_evidence' evidence.id %}", {
-      method: 'POST',
-      headers: { 'X-CSRFToken': '{{ csrf_token }}' },
-    });
-    const data = await resp.json();
-    if (data.status === 'ok') {
-      window.location.reload();
+const reanalyzeBtn = document.getElementById('btn-reanalyze');
+
+if (reanalyzeBtn) {
+  reanalyzeBtn.addEventListener('click', async function() {
+    const spin = document.getElementById('spin');
+    this.disabled = true;
+    spin.style.display = 'inline-block';
+
+    try {
+      const resp = await fetch("{% url 'reanalyze_evidence' evidence.id %}", {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': '{{ csrf_token }}'
+        }
+      });
+
+      const data = await resp.json();
+
+      if (data.status === 'ok') {
+        window.location.reload();
+      } else {
+        alert('Re-analysis completed with an unexpected response. Please refresh the page.');
+      }
+    } catch (e) {
+      alert('Re-analysis failed. Check API keys in .env file.');
+    } finally {
+      this.disabled = false;
+      spin.style.display = 'none';
     }
-  } catch (e) {
-    alert('Re-analysis failed. Check API keys in .env file.');
-  } finally {
-    this.disabled = false;
-    spin.style.display = 'none';
-  }
-});
+  });
+}
 </script>
+
 </body>
 </html>
