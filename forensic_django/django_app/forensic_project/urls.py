@@ -8,6 +8,8 @@ from django.urls import include, path
 
 from accounts.views import home
 
+admin.site.enable_nav_sidebar = False
+
 urlpatterns = [
     # Home (requires login + approval)
     path('', home, name='home'),

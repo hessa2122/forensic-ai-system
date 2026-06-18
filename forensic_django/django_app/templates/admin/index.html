@@ -274,17 +274,44 @@
 
             <div class="model-links">
               {% for model in app.models %}
-                {% if model.admin_url %}
+
+                {% if model.object_name == "AuditLog" %}
+                  <a href="/admin-panel/audit-log/" class="model-link">
+                    <span>{{ model.name }}</span>
+                    <span>View →</span>
+                  </a>
+
+                {% elif model.object_name == "UserProfile" %}
+                  <a href="/admin-panel/users/" class="model-link">
+                    <span>{{ model.name }}</span>
+                    <span>Manage →</span>
+                  </a>
+
+                {% elif model.object_name == "User" %}
+                  <a href="/admin/auth/user/" class="model-link">
+                    <span>{{ model.name }}</span>
+                    <span>Open →</span>
+                  </a>
+
+                {% elif model.object_name == "Group" %}
+                  <a href="/admin/auth/group/" class="model-link">
+                    <span>{{ model.name }}</span>
+                    <span>Open →</span>
+                  </a>
+
+                {% elif model.admin_url %}
                   <a href="{{ model.admin_url }}" class="model-link">
                     <span>{{ model.name }}</span>
                     <span>Open →</span>
                   </a>
+
                 {% else %}
                   <div class="model-link">
                     <span>{{ model.name }}</span>
                     <span>No access</span>
                   </div>
                 {% endif %}
+
               {% endfor %}
             </div>
           </div>
@@ -303,14 +330,34 @@
       <span>Go to Forensic Command Center</span>
     </a>
 
+    <a href="/admin-panel/users/" class="quick-link">
+      👥 Custom User Management
+      <span>Approve users, manage roles, and view user profiles</span>
+    </a>
+
+    <a href="/admin-panel/audit-log/" class="quick-link">
+      📋 View Audit Log
+      <span>Track login, registration, evidence upload, update, delete, and report actions</span>
+    </a>
+
     <a href="/admin/auth/user/" class="quick-link">
-      👤 Manage Users
-      <span>Add, edit, or remove users</span>
+      ⚙️ Django User Table
+      <span>Open default Django user database table</span>
     </a>
 
     <a href="/admin/auth/group/" class="quick-link">
       🛡️ Manage Roles
       <span>Control user groups and permissions</span>
+    </a>
+
+    <a href="/admin/cases/case/" class="quick-link">
+      📁 Manage Cases
+      <span>Open forensic case records</span>
+    </a>
+
+    <a href="/admin/evidence/evidence/" class="quick-link">
+      🧾 Manage Evidence
+      <span>Open uploaded evidence records</span>
     </a>
 
     <div class="system-status">
@@ -339,5 +386,4 @@
   </div>
 
 </div>
-
 {% endblock %}

@@ -972,7 +972,7 @@ tr:hover td{background:rgba(34,200,255,.04) !important;}
     New Case
   </div>
 
-  <div class="sidebar-item" onclick="showPage('analyze')">
+  <div class="sidebar-item" onclick="showPage('cases'); showToast('Select a case and click Upload to add evidence.', 'info');">
     <span class="side-icon">📤</span>
     Upload Evidence
   </div>
@@ -1299,6 +1299,11 @@ tr:hover td{background:rgba(34,200,255,.04) !important;}
           </select>
         </div>
         <button class="btn btn-primary btn-full" onclick="loadSelectedScene()">Load 3D Scene</button>
+
+        <button class="btn btn-ghost btn-full" id="open-full-viewer-btn"
+                onclick="openFullViewerFromScene()" style="margin-top:.75rem">
+          🌐 Open Full 3D Viewer
+        </button>
       </div>
 
       <div class="card">
@@ -1330,6 +1335,7 @@ tr:hover td{background:rgba(34,200,255,.04) !important;}
           <button class="viewer-btn" onclick="toggleWireframe()">◻ Wireframe</button>
           <button class="viewer-btn" onclick="togglePoints()">● Points</button>
           <button class="viewer-btn" onclick="downloadSceneProvenance()">JSON Provenance</button>
+          <button class="viewer-btn" onclick="openFullViewerFromScene()">Full Viewer</button>
         </div>
       </div>
     </div>
@@ -1498,10 +1504,11 @@ async function loadCases() {
         <td><span style="color:${c.priority_color};font-size:12px;font-family:var(--mono)">${c.priority.toUpperCase()}</span></td>
         <td><span style="font-size:12px;color:var(--muted)">${c.status}</span></td>
         <td style="font-family:var(--mono);font-size:12px">${c.evidence_count}</td>
-        <td>
-          <button class="btn btn-ghost" style="font-size:11px;padding:.3rem .6rem" data-case-title="${escapeAttr(c.title)}" onclick="selectCaseForAnalysis(${c.id}, this.dataset.caseTitle)">Analyze</button>
+        <td style="display:flex;gap:.45rem;flex-wrap:wrap;align-items:center">
+          <a href="/evidence/case/${c.id}/" class="btn btn-ghost" style="font-size:11px;padding:.3rem .6rem;text-decoration:none">📁 Evidence</a>
+          <button class="btn btn-ghost" style="font-size:11px;padding:.3rem .6rem" data-case-title="${escapeAttr(c.title)}" onclick="selectCaseForAnalysis(${c.id}, this.dataset.caseTitle)">🔍 Quick Analyze</button>
           <a href="/api/cases/${c.id}/report/" target="_blank" class="btn btn-green" style="font-size:11px;padding:.3rem .6rem;text-decoration:none">⬇ PDF</a>
-          <button class="btn btn-danger" onclick="deleteCase(${c.id},this)">Delete</button>
+          <button class="btn btn-danger" style="font-size:11px;padding:.3rem .6rem" onclick="deleteCase(${c.id},this)">Delete</button>
         </td>
       </tr>`).join('');
     document.getElementById('cases-table-wrap').style.display = 'block';
@@ -1707,8 +1714,14 @@ async function loadReconstructions() {
     const sel  = document.getElementById('recon-scene-select');
     sel.innerHTML = data.length
       ? '<option value="">— Select a scene —</option>' +
-        data.map(r => `<option value="${r.id}" data-mesh="${escapeAttr(r.mesh_url || r.ply_url)}" data-mesh-type="${escapeAttr(r.mesh_type || 'glb')}" data-points="${r.total_points}" data-clusters="${r.num_clusters}" data-size="${r.ply_size_mb}">
-          Scene #${r.id} — solid mesh — ${r.total_points} pts</option>`).join('')
+        data.map(r => `<option value="${r.id}"
+          data-evidence="${escapeAttr(r.evidence_id || r.evidence_pk || r.evidence || r.evidence__id || '')}"
+          data-mesh="${escapeAttr(r.mesh_url || r.glb_url || r.ply_url)}"
+          data-mesh-type="${escapeAttr(r.mesh_type || (String(r.mesh_url || r.glb_url || r.ply_url || '').toLowerCase().endsWith('.ply') ? 'ply' : 'glb'))}"
+          data-points="${escapeAttr(r.total_points || 0)}"
+          data-clusters="${escapeAttr(r.num_clusters || 0)}"
+          data-size="${escapeAttr(r.ply_size_mb || '')}">
+          Scene #${r.id} — solid mesh — ${r.total_points || 0} pts</option>`).join('')
       : '<option value="">No reconstructions yet</option>';
   } catch(e) {
     showToast(e.message, 'error');
@@ -1723,6 +1736,7 @@ function loadSelectedScene() {
   const sceneData = {
     id:           option.value,
     scene_id:     option.value,
+    evidence_id:  option.dataset.evidence || null,
     mesh_url:     option.dataset.mesh,
     mesh_type:    option.dataset.meshType || 'glb',
     ply_url:      option.dataset.mesh,
@@ -1822,6 +1836,7 @@ async function loadSceneIntoViewer(sceneId, fallbackData = {}) {
   currentSceneData = {
     ...data,
     scene_id: sceneId || data.scene_id || data.id,
+    evidence_id: data.evidence_id || data.evidence_pk || data.evidence || data.evidence__id || null,
     render_mode: 'solid_mesh',
     provenance: {
       mesh_url: meshUrl,
@@ -1948,14 +1963,61 @@ function createWireAndPointOverlays(group) {
   threeScene.add(points);
 }
 
+
+function getEvidenceIdFromSceneData(data = {}) {
+  if (!data) return null;
+  const raw = data.evidence_id || data.evidence_pk || data.evidence__id || data.evidence;
+  if (!raw) return null;
+
+  // Some APIs return evidence as a number, some as {id: 2}
+  if (typeof raw === 'object') return raw.id || raw.pk || null;
+  return raw;
+}
+
+async function openFullViewerFromScene() {
+  const sel = document.getElementById('recon-scene-select');
+  const option = sel ? sel.options[sel.selectedIndex] : null;
+
+  let evidenceId =
+    (option && option.dataset ? option.dataset.evidence : null) ||
+    getEvidenceIdFromSceneData(currentSceneData);
+
+  const sceneId =
+    (option && option.value) ||
+    (currentSceneData && (currentSceneData.scene_id || currentSceneData.id));
+
+  // If evidence_id was not available in the dropdown, fetch full scene details.
+  if (!evidenceId && sceneId) {
+    try {
+      const r = await fetch(`/api/reconstruction/reconstruction-data/${sceneId}/`);
+      if (r.ok) {
+        const data = await r.json();
+        evidenceId = getEvidenceIdFromSceneData(data);
+        currentSceneData = { ...(currentSceneData || {}), ...data };
+      }
+    } catch (e) {}
+  }
+
+  if (!evidenceId) {
+    showToast('Evidence ID not found. Open Evidence list and click 3D View for that evidence.', 'error');
+    return;
+  }
+
+  window.location.href = `/reconstruction/${evidenceId}/`;
+}
+
 function updateSceneInfo(data) {
   const total = Number(data.total_points || 0).toLocaleString();
   const clusters = Number(data.num_clusters || 0).toLocaleString();
   const meshType = (data.mesh_type || 'glb').toUpperCase();
+  const evidenceId = getEvidenceIdFromSceneData(data);
   document.getElementById('scene-info').innerHTML = `
     <div class="stat-row"><span>Total points</span><strong>${total}</strong></div>
     <div class="stat-row"><span>Clusters</span><strong>${clusters}</strong></div>
     <div class="stat-row"><span>Render</span><strong>Solid ${meshType}</strong></div>
+    ${evidenceId ? `<div style="margin-top:.8rem">
+      <a class="btn btn-ghost btn-full" href="/reconstruction/${evidenceId}/">🌐 Open Full 3D Viewer</a>
+    </div>` : ''}
   `;
 }
 
