@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Forensic AI System</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            color: white;
+            background:
+                linear-gradient(
+                    rgba(2, 6, 23, 0.88),
+                    rgba(15, 23, 42, 0.92)
+                ),
+                url("https://images.unsplash.com/photo-1563986768609-322da13575f3")
+                center/cover no-repeat;
+        }
+
+        nav {
+            height: 80px;
+            padding: 0 8%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.12);
+            background: rgba(2, 6, 23, 0.65);
+            backdrop-filter: blur(12px);
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #38bdf8;
+        }
+
+        .login-button {
+            text-decoration: none;
+            color: white;
+            background: #2563eb;
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+
+        .login-button:hover {
+            background: #1d4ed8;
+            transform: translateY(-2px);
+        }
+
+        .hero {
+            min-height: calc(100vh - 80px);
+            padding: 70px 8%;
+            display: flex;
+            align-items: center;
+        }
+
+        .hero-content {
+            max-width: 720px;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 8px 15px;
+            margin-bottom: 22px;
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            border-radius: 30px;
+            color: #7dd3fc;
+            background: rgba(14, 165, 233, 0.12);
+        }
+
+        h1 {
+            font-size: 58px;
+            line-height: 1.1;
+            margin-bottom: 22px;
+        }
+
+        h1 span {
+            color: #38bdf8;
+        }
+
+        .description {
+            max-width: 650px;
+            margin-bottom: 35px;
+            color: #cbd5e1;
+            font-size: 18px;
+            line-height: 1.7;
+        }
+
+        .actions {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .primary-button,
+        .secondary-button {
+            display: inline-block;
+            padding: 14px 28px;
+            border-radius: 9px;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .primary-button {
+            color: white;
+            background: #2563eb;
+        }
+
+        .secondary-button {
+            color: #e2e8f0;
+            border: 1px solid rgba(255,255,255,0.25);
+            background: rgba(255,255,255,0.07);
+        }
+
+        .primary-button:hover {
+            background: #1d4ed8;
+        }
+
+        .secondary-button:hover {
+            background: rgba(255,255,255,0.13);
+        }
+
+        @media (max-width: 700px) {
+            nav {
+                padding: 0 5%;
+            }
+
+            .hero {
+                padding: 50px 6%;
+            }
+
+            h1 {
+                font-size: 40px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<nav>
+    <div class="logo">Forensic AI</div>
+
+    <a href="{% url 'login' %}" class="login-button">
+        Login
+    </a>
+</nav>
+
+<section class="hero">
+    <div class="hero-content">
+
+        <div class="tag">
+            AI-Powered Digital Forensic Investigation
+        </div>
+
+        <h1>
+            Intelligent Evidence Analysis for
+            <span>Modern Investigations</span>
+        </h1>
+
+        <p class="description">
+            A secure forensic investigation platform for managing cases,
+            uploading evidence, detecting forensic objects, requesting AI
+            analysis, generating reports and creating 3D crime-scene
+            visualizations.
+        </p>
+
+        
+
+    </div>
+</section>
+
+</body>
+</html>

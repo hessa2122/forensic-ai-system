@@ -54,37 +54,64 @@ def register_view(request):
 
 def login_view(request):
     if request.user.is_authenticated:
-        return redirect('home')
+        if request.user.is_staff or request.user.is_superuser:
+            return redirect("admin:index")
+        return redirect("home")
+
     error = None
-    if request.method == 'POST':
-        username = request.POST.get('username', '').strip()
-        password = request.POST.get('password', '')
-        user = authenticate(request, username=username, password=password)
+
+    if request.method == "POST":
+        username = request.POST.get("username", "").strip()
+        password = request.POST.get("password", "")
+
+        user = authenticate(
+            request,
+            username=username,
+            password=password,
+        )
+
         if user is None:
-            error = 'Invalid username or password.'
+            error = "Invalid username or password."
+
         elif not user.is_active:
-            error = 'Your account has been disabled.'
-        elif not user.is_staff:
+            error = "Your account has been disabled."
+
+        elif not user.is_staff and not user.is_superuser:
             try:
                 if not user.profile.is_approved:
-                    error = 'Your account is awaiting admin approval.'
-                    log_action(user, 'login', target='blocked-pending', request=request)
-                    return render(request, 'registration/login.html', {'error': error})
+                    error = "Your account is awaiting admin approval."
+
+                    log_action(
+                        user,
+                        "login",
+                        target="blocked-pending",
+                        request=request,
+                    )
+
             except UserProfile.DoesNotExist:
-                error = 'Your account is awaiting admin approval.'
-                return render(request, 'registration/login.html', {'error': error})
-        if user and error is None:
+                error = "Your account is awaiting admin approval."
+
+        if user is not None and error is None:
             login(request, user)
-            # update last_active
+
             try:
                 user.profile.last_active = timezone.now()
-                user.profile.save(update_fields=['last_active'])
+                user.profile.save(update_fields=["last_active"])
             except UserProfile.DoesNotExist:
                 pass
-            log_action(user, 'login', request=request)
-            return redirect('home')
-    return render(request, 'registration/login.html', {'error': error})
 
+            log_action(user, "login", request=request)
+
+            if user.is_staff or user.is_superuser:
+                return redirect("admin:index")
+
+            return redirect("home")
+
+    return render(
+        request,
+        "registration/login.html",
+        {"error": error},
+    )
 
 def logout_view(request):
     if request.user.is_authenticated:

@@ -1,14 +1,255 @@
 {% extends "admin/base.html" %}
 {% load static %}
 
-{% block title %}ForensicAI Admin Panel{% endblock %}
+{% block title %}{{ title }} | ForensicAI Admin{% endblock %}
 
 {% block branding %}
 <h1 id="site-name">
-  <a href="{% url 'admin:index' %}" style="color:#38bdf8; text-decoration:none;">
-    🧬 ForensicAI Admin
-  </a>
+  <a href="{% url 'admin:index' %}">ForensicAI Admin</a>
 </h1>
 {% endblock %}
 
-{% block nav-global %}{% endblock %}
+{% block nav-global %}
+<nav class="forensic-admin-nav" aria-label="Admin shortcuts">
+  <a href="{% url 'landing_page' %}">Home</a>
+  <a href="{% url 'home' %}">Dashboard</a>
+  <a href="{% url 'admin_users' %}">User Approvals</a>
+  <a href="{% url 'admin_audit_log' %}">Audit Log</a>
+</nav>
+{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  :root {
+    --fa-bg: #0b1020;
+    --fa-panel: #111827;
+    --fa-panel-soft: #172033;
+    --fa-border: #2a3a52;
+    --fa-text: #e6edf7;
+    --fa-muted: #9aa7ba;
+    --fa-accent: #38bdf8;
+    --fa-blue: #2563eb;
+    --fa-danger: #ef4444;
+  }
+
+  html[data-theme="light"],
+  html[data-theme="dark"],
+  :root {
+    --primary: #111827;
+    --secondary: #1f2937;
+    --accent: var(--fa-accent);
+    --primary-fg: #f8fafc;
+    --body-fg: var(--fa-text);
+    --body-bg: var(--fa-bg);
+    --body-quiet-color: var(--fa-muted);
+    --body-loud-color: #ffffff;
+    --header-color: #ffffff;
+    --header-branding-color: #ffffff;
+    --header-bg: #070b16;
+    --header-link-color: #dbeafe;
+    --breadcrumbs-fg: #dbeafe;
+    --breadcrumbs-bg: #111827;
+    --link-fg: #7dd3fc;
+    --link-hover-color: #bae6fd;
+    --link-selected-fg: #ffffff;
+    --hairline-color: var(--fa-border);
+    --border-color: var(--fa-border);
+    --error-fg: #fecaca;
+    --message-success-bg: rgba(34, 197, 94, 0.16);
+    --message-warning-bg: rgba(245, 158, 11, 0.16);
+    --message-error-bg: rgba(239, 68, 68, 0.16);
+    --darkened-bg: #0f172a;
+    --selected-bg: rgba(56, 189, 248, 0.14);
+    --selected-row: rgba(56, 189, 248, 0.12);
+    --button-fg: #ffffff;
+    --button-bg: var(--fa-blue);
+    --button-hover-bg: #1d4ed8;
+    --default-button-bg: #0891b2;
+    --default-button-hover-bg: #0e7490;
+    --close-button-bg: #475569;
+    --close-button-hover-bg: #334155;
+    color-scheme: dark;
+  }
+
+  body {
+    background: linear-gradient(135deg, #0b1020, #101827 52%, #0b1020) !important;
+    color: var(--fa-text) !important;
+  }
+
+  #container {
+    background: transparent;
+  }
+
+  #header {
+    align-items: center;
+    background: rgba(7, 11, 22, 0.98) !important;
+    border-bottom: 1px solid var(--fa-border);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
+    min-height: 64px;
+  }
+
+  #branding h1,
+  #branding h1 a:link,
+  #branding h1 a:visited {
+    color: #ffffff !important;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-decoration: none;
+  }
+
+  .forensic-admin-nav {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .forensic-admin-nav a {
+    background: rgba(15, 23, 42, 0.72);
+    border: 1px solid rgba(125, 211, 252, 0.26);
+    border-radius: 8px;
+    color: #dbeafe !important;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 8px 11px;
+    text-decoration: none;
+  }
+
+  .forensic-admin-nav a:hover {
+    background: rgba(14, 165, 233, 0.14);
+    border-color: rgba(125, 211, 252, 0.62);
+  }
+
+  div.breadcrumbs {
+    background: rgba(17, 24, 39, 0.94) !important;
+    border-bottom: 1px solid var(--fa-border);
+  }
+
+  #content {
+    padding: 28px;
+  }
+
+  .module,
+  .inline-group,
+  .submit-row,
+  #changelist,
+  .paginator,
+  .messagelist li,
+  fieldset.module {
+    background: rgba(17, 24, 39, 0.94) !important;
+    border: 1px solid var(--fa-border) !important;
+    border-radius: 8px;
+    box-shadow: 0 18px 46px rgba(0, 0, 0, 0.24);
+  }
+
+  .module h2,
+  .module caption,
+  .inline-group h2 {
+    background: linear-gradient(90deg, #111827, #172033) !important;
+    border-radius: 8px 8px 0 0;
+    color: #f8fafc !important;
+    font-weight: 800;
+    letter-spacing: 0;
+  }
+
+  table {
+    border-color: var(--fa-border) !important;
+  }
+
+  thead th,
+  tfoot td {
+    background: #172033 !important;
+    border-bottom: 1px solid var(--fa-border) !important;
+    color: #dbeafe !important;
+  }
+
+  tbody tr {
+    background: rgba(15, 23, 42, 0.68) !important;
+  }
+
+  tbody tr:nth-child(even) {
+    background: rgba(30, 41, 59, 0.72) !important;
+  }
+
+  td,
+  th,
+  label,
+  p,
+  li {
+    color: var(--fa-text);
+  }
+
+  a:link,
+  a:visited {
+    color: #7dd3fc;
+  }
+
+  a:hover {
+    color: #bae6fd;
+  }
+
+  input,
+  textarea,
+  select,
+  .vTextField {
+    background: #0f172a !important;
+    border: 1px solid var(--fa-border) !important;
+    border-radius: 6px !important;
+    color: #f8fafc !important;
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    border-color: var(--fa-accent) !important;
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.14);
+    outline: none;
+  }
+
+  .button,
+  input[type=submit],
+  input[type=button],
+  .submit-row input,
+  a.button,
+  .object-tools a {
+    border-radius: 7px !important;
+    font-weight: 800;
+  }
+
+  .object-tools a,
+  .object-tools a:link,
+  .object-tools a:visited {
+    background: #0891b2 !important;
+  }
+
+  .deletelink,
+  input[type=submit].deletelink {
+    background: var(--fa-danger) !important;
+  }
+
+  #user-tools {
+    color: var(--fa-muted);
+  }
+
+  #user-tools a {
+    border-bottom: 0;
+    color: #bae6fd !important;
+  }
+
+  @media (max-width: 767px) {
+    #header {
+      align-items: flex-start;
+      padding: 16px;
+    }
+
+    .forensic-admin-nav {
+      margin-top: 10px;
+    }
+
+    #content {
+      padding: 18px;
+    }
+  }
+</style>
+{% endblock %}

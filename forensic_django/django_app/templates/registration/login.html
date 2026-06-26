@@ -282,9 +282,9 @@
   <div class="brand">FORENSIC AI</div>
 
   <div class="nav-actions">
-    <!-- <a href="{% url 'login' %}">Login</a> -->
-    <!-- <a href="{% url 'register' %}">Register</a> -->
-  </div>
+  <a href="{% url 'landing_page' %}">Home</a>
+  <a href="{% url 'register' %}">Register</a>
+</div>
 </header>
 
 <section class="hero">
@@ -299,10 +299,15 @@
     <div class="login-card">
       <h3>Login</h3>
 
-      {% if error %}
-        <div class="error">{{ error }}</div>
-      {% endif %}
+      {% if form.errors %}
+  <div class="error">
+    Invalid username or password. Please try again.
+  </div>
+{% endif %}
 
+{% if error %}
+  <div class="error">{{ error }}</div>
+{% endif %}
       {% if messages %}
         {% for message in messages %}
           <div class="message">{{ message }}</div>
@@ -311,6 +316,7 @@
 
       <form method="post">
         {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}">
 
         <div class="form-group">
           <label for="username">Username</label>
@@ -341,14 +347,13 @@
       </form>
 
       <div class="links">
-        <a href="{% url 'register' %}">Register</a>
-        <a href="#">Forgot Password?</a>
-      </div>
+  <a href="{% url 'register' %}">Create an Account</a>
+  <a href="{% url 'landing_page' %}">Back to Home</a>
+</div>
 
       <div class="system-name">FORENSIC AI SYSTEM</div>
     </div>
 
-    <a href="/" class="home-btn">🏠 Home</a>
 
   </div>
 </section>

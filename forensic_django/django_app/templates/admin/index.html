@@ -4,196 +4,185 @@
 {% block extrastyle %}
 {{ block.super }}
 <style>
-  :root {
-    --admin-bg: #020617;
-    --admin-card: rgba(15, 23, 42, 0.92);
-    --admin-border: rgba(56, 189, 248, 0.18);
-    --admin-text: #e5edf8;
-    --admin-muted: #94a3b8;
-    --admin-cyan: #38bdf8;
-    --admin-blue: #2563eb;
-    --admin-green: #22c55e;
+  #content-main {
+    width: 100%;
   }
 
-  body {
+  #content-related {
+    display: none;
+  }
+
+  .admin-hero {
     background:
-      radial-gradient(circle at 20% 20%, rgba(14,165,233,0.18), transparent 28%),
-      radial-gradient(circle at 85% 80%, rgba(37,99,235,0.20), transparent 30%),
-      linear-gradient(135deg, #020617, #07111f 45%, #020617) !important;
-    color: var(--admin-text) !important;
+      linear-gradient(135deg, rgba(14, 165, 233, 0.16), rgba(37, 99, 235, 0.08)),
+      rgba(17, 24, 39, 0.96);
+    border: 1px solid rgba(56, 189, 248, 0.22);
+    border-radius: 8px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.30);
+    margin-bottom: 20px;
+    padding: 26px;
   }
 
-  #header {
-    background: rgba(2, 6, 23, 0.96) !important;
-    border-bottom: 1px solid var(--admin-border);
-    box-shadow: 0 10px 35px rgba(0,0,0,0.35);
-  }
-
-  #content {
-    padding: 28px !important;
-  }
-
-  .forensic-admin-hero {
-    border: 1px solid var(--admin-border);
-    background:
-      linear-gradient(135deg, rgba(14,165,233,0.16), rgba(37,99,235,0.08)),
-      rgba(15,23,42,0.88);
-    border-radius: 24px;
-    padding: 32px;
-    margin-bottom: 26px;
-    box-shadow: 0 24px 70px rgba(0,0,0,0.35);
-  }
-
-  .hero-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 14px;
-    border-radius: 999px;
-    background: rgba(34,211,238,0.10);
-    border: 1px solid rgba(34,211,238,0.25);
-    color: #67e8f9;
+  .admin-hero-label {
+    color: #7dd3fc;
     font-size: 12px;
-    letter-spacing: 1px;
+    font-weight: 800;
+    letter-spacing: 0;
+    margin-bottom: 10px;
     text-transform: uppercase;
-    margin-bottom: 16px;
-    font-weight: 700;
   }
 
-  .forensic-admin-hero h1 {
+  .admin-hero h1 {
     color: #f8fafc;
-    font-size: 34px;
+    font-size: 30px;
+    line-height: 1.2;
     margin: 0 0 8px;
   }
 
-  .forensic-admin-hero h1 span {
-    color: var(--admin-cyan);
-  }
-
-  .forensic-admin-hero p {
-    color: var(--admin-muted);
-    font-size: 15px;
-    max-width: 760px;
+  .admin-hero p {
+    color: #a8b3c5;
+    font-size: 14px;
     line-height: 1.6;
     margin: 0;
+    max-width: 820px;
   }
 
   .admin-stats {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    margin-bottom: 26px;
+    gap: 14px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-bottom: 20px;
+  }
+
+  .admin-stat-card,
+  .admin-panel {
+    background: rgba(17, 24, 39, 0.94);
+    border: 1px solid #2a3a52;
+    border-radius: 8px;
+    box-shadow: 0 18px 46px rgba(0, 0, 0, 0.24);
   }
 
   .admin-stat-card {
-    background: var(--admin-card);
-    border: 1px solid rgba(148,163,184,0.14);
-    border-radius: 18px;
-    padding: 20px;
-    box-shadow: 0 18px 45px rgba(0,0,0,0.20);
+    padding: 17px;
   }
 
   .admin-stat-card small {
-    color: var(--admin-muted);
-    text-transform: uppercase;
-    letter-spacing: 1px;
+    color: #9aa7ba;
+    display: block;
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
   }
 
-  .admin-stat-card h2 {
+  .admin-stat-card strong {
     color: #f8fafc;
-    margin: 8px 0 0;
-    font-size: 26px;
+    display: block;
+    font-size: 24px;
+    line-height: 1.2;
+    margin-top: 7px;
   }
 
   .admin-main-grid {
     display: grid;
-    grid-template-columns: 2fr 1fr;
     gap: 18px;
+    grid-template-columns: minmax(0, 2fr) minmax(280px, 0.95fr);
   }
 
   .admin-panel {
-    background: var(--admin-card);
-    border: 1px solid rgba(148,163,184,0.14);
-    border-radius: 20px;
-    padding: 22px;
-    box-shadow: 0 18px 45px rgba(0,0,0,0.20);
+    padding: 20px;
   }
 
   .admin-panel h2 {
     color: #f8fafc;
-    margin-top: 0;
-    font-size: 18px;
-    margin-bottom: 16px;
+    font-size: 17px;
+    margin: 0 0 14px;
   }
 
   .app-list-custom {
     display: grid;
-    gap: 14px;
+    gap: 13px;
   }
 
   .app-card {
-    border: 1px solid rgba(148,163,184,0.14);
-    background: rgba(2,6,23,0.45);
-    border-radius: 16px;
-    padding: 16px;
+    background: rgba(15, 23, 42, 0.74);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 8px;
+    padding: 15px;
   }
 
   .app-card h3 {
+    color: #7dd3fc;
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 0;
     margin: 0 0 12px;
-    color: var(--admin-cyan);
-    font-size: 15px;
     text-transform: uppercase;
-    letter-spacing: 1px;
   }
 
   .model-links {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
     gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .model-link,
+  .quick-link {
+    background: rgba(2, 6, 23, 0.44);
+    border: 1px solid rgba(125, 211, 252, 0.16);
+    border-radius: 8px;
+    color: #dbeafe !important;
+    text-decoration: none;
+    transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
   }
 
   .model-link {
-    display: flex;
-    justify-content: space-between;
     align-items: center;
-    background: rgba(15,23,42,0.75);
-    border: 1px solid rgba(56,189,248,0.12);
-    border-radius: 12px;
-    padding: 12px 14px;
-    color: #dbeafe !important;
-    text-decoration: none;
-    transition: 0.2s;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    min-height: 44px;
+    padding: 10px 12px;
   }
 
-  .model-link:hover {
-    border-color: rgba(56,189,248,0.35);
-    background: rgba(14,165,233,0.10);
-    transform: translateY(-2px);
+  .model-link:hover,
+  .quick-link:hover {
+    background: rgba(14, 165, 233, 0.12);
+    border-color: rgba(125, 211, 252, 0.48);
+    transform: translateY(-1px);
+  }
+
+  .model-link span:first-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .model-link span:last-child {
+    color: #93c5fd;
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
   }
 
   .quick-link {
     display: block;
-    padding: 14px 16px;
-    border-radius: 14px;
-    color: #dbeafe !important;
-    text-decoration: none;
-    background: rgba(2,6,23,0.50);
-    border: 1px solid rgba(148,163,184,0.14);
-    margin-bottom: 12px;
-    transition: 0.2s;
+    margin-bottom: 10px;
+    padding: 13px 14px;
   }
 
-  .quick-link:hover {
-    background: rgba(14,165,233,0.10);
-    border-color: rgba(56,189,248,0.30);
+  .quick-link strong {
+    color: #f8fafc;
+    display: block;
+    font-size: 13px;
+    line-height: 1.3;
   }
 
   .quick-link span {
+    color: #9aa7ba;
     display: block;
-    color: var(--admin-muted);
     font-size: 12px;
+    line-height: 1.4;
     margin-top: 4px;
   }
 
@@ -202,23 +191,27 @@
   }
 
   .status-row {
+    align-items: center;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+    color: #a8b3c5;
     display: flex;
+    gap: 14px;
     justify-content: space-between;
-    padding: 12px 0;
-    border-bottom: 1px solid rgba(148,163,184,0.12);
-    color: var(--admin-muted);
+    padding: 11px 0;
+  }
+
+  .status-row:last-child {
+    border-bottom: 0;
   }
 
   .status-row strong {
     color: #86efac;
-    font-size: 12px;
+    font-size: 11px;
+    letter-spacing: 0;
+    text-transform: uppercase;
   }
 
-  #content-related {
-    display: none;
-  }
-
-  @media(max-width: 1000px) {
+  @media (max-width: 1024px) {
     .admin-stats,
     .admin-main-grid,
     .model-links {
@@ -229,161 +222,119 @@
 {% endblock %}
 
 {% block content %}
-
-<div class="forensic-admin-hero">
-  <div class="hero-badge">● Secure Admin Workspace</div>
-  <h1>Forensic <span>Administration Panel</span></h1>
+<section class="admin-hero">
+  <div class="admin-hero-label">Secure Administration Workspace</div>
+  <h1>ForensicAI Administration Panel</h1>
   <p>
-    Manage users, forensic cases, evidence records, AI detection data, reports,
-    and system modules from a secure administrative control center.
+    Manage user access, forensic cases, evidence records, reconstruction data,
+    reports, and audit activity from one focused admin console.
   </p>
-</div>
+</section>
 
-<div class="admin-stats">
+<section class="admin-stats" aria-label="System status summary">
   <div class="admin-stat-card">
     <small>Access Mode</small>
-    <h2>Admin</h2>
+    <strong>Admin</strong>
   </div>
-
   <div class="admin-stat-card">
     <small>System Status</small>
-    <h2>Online</h2>
+    <strong>Online</strong>
   </div>
-
   <div class="admin-stat-card">
     <small>Security</small>
-    <h2>Active</h2>
+    <strong>Active</strong>
   </div>
-
   <div class="admin-stat-card">
     <small>AI Module</small>
-    <h2>Ready</h2>
+    <strong>Ready</strong>
   </div>
-</div>
+</section>
 
 <div class="admin-main-grid">
-
-  <div class="admin-panel">
+  <section class="admin-panel">
     <h2>Database Management</h2>
 
     <div class="app-list-custom">
       {% if app_list %}
         {% for app in app_list %}
-          <div class="app-card">
+          <article class="app-card">
             <h3>{{ app.name }}</h3>
-
             <div class="model-links">
               {% for model in app.models %}
-
                 {% if model.object_name == "AuditLog" %}
-                  <a href="/admin-panel/audit-log/" class="model-link">
+                  <a href="{% url 'admin_audit_log' %}" class="model-link">
                     <span>{{ model.name }}</span>
-                    <span>View →</span>
+                    <span>View</span>
                   </a>
-
                 {% elif model.object_name == "UserProfile" %}
-                  <a href="/admin-panel/users/" class="model-link">
+                  <a href="{% url 'admin_users' %}" class="model-link">
                     <span>{{ model.name }}</span>
-                    <span>Manage →</span>
+                    <span>Manage</span>
                   </a>
-
-                {% elif model.object_name == "User" %}
-                  <a href="/admin/auth/user/" class="model-link">
-                    <span>{{ model.name }}</span>
-                    <span>Open →</span>
-                  </a>
-
-                {% elif model.object_name == "Group" %}
-                  <a href="/admin/auth/group/" class="model-link">
-                    <span>{{ model.name }}</span>
-                    <span>Open →</span>
-                  </a>
-
                 {% elif model.admin_url %}
                   <a href="{{ model.admin_url }}" class="model-link">
                     <span>{{ model.name }}</span>
-                    <span>Open →</span>
+                    <span>Open</span>
                   </a>
-
                 {% else %}
                   <div class="model-link">
                     <span>{{ model.name }}</span>
-                    <span>No access</span>
+                    <span>Locked</span>
                   </div>
                 {% endif %}
-
               {% endfor %}
             </div>
-          </div>
+          </article>
         {% endfor %}
       {% else %}
-        <p>No admin modules available.</p>
+        <p>No admin modules are available for this account.</p>
       {% endif %}
     </div>
-  </div>
+  </section>
 
-  <div class="admin-panel">
+  <aside class="admin-panel">
     <h2>Quick Actions</h2>
 
-    <a href="/" class="quick-link">
-      🏠 Open Project Dashboard
-      <span>Go to Forensic Command Center</span>
+    <a href="{% url 'home' %}" class="quick-link">
+      <strong>Open Project Dashboard</strong>
+      <span>Return to the investigator workspace.</span>
     </a>
-
-    <a href="/admin-panel/users/" class="quick-link">
-      👥 Custom User Management
-      <span>Approve users, manage roles, and view user profiles</span>
+    <a href="{% url 'admin_users' %}" class="quick-link">
+      <strong>Review User Approvals</strong>
+      <span>Approve access, update profiles, and manage investigator roles.</span>
     </a>
-
-    <a href="/admin-panel/audit-log/" class="quick-link">
-      📋 View Audit Log
-      <span>Track login, registration, evidence upload, update, delete, and report actions</span>
+    <a href="{% url 'admin_audit_log' %}" class="quick-link">
+      <strong>View Audit Log</strong>
+      <span>Inspect login, registration, upload, update, delete, and report activity.</span>
     </a>
-
-    <a href="/admin/auth/user/" class="quick-link">
-      ⚙️ Django User Table
-      <span>Open default Django user database table</span>
+    <a href="{% url 'admin:auth_user_changelist' %}" class="quick-link">
+      <strong>Django User Table</strong>
+      <span>Open the default Django account table.</span>
     </a>
-
-    <a href="/admin/auth/group/" class="quick-link">
-      🛡️ Manage Roles
-      <span>Control user groups and permissions</span>
-    </a>
-
-    <a href="/admin/cases/case/" class="quick-link">
-      📁 Manage Cases
-      <span>Open forensic case records</span>
-    </a>
-
-    <a href="/admin/evidence/evidence/" class="quick-link">
-      🧾 Manage Evidence
-      <span>Open uploaded evidence records</span>
+    <a href="{% url 'admin:auth_group_changelist' %}" class="quick-link">
+      <strong>Permission Groups</strong>
+      <span>Control groups and model permissions.</span>
     </a>
 
     <div class="system-status">
       <h2>System Status</h2>
-
       <div class="status-row">
         <span>Admin Authentication</span>
-        <strong>ACTIVE</strong>
+        <strong>Active</strong>
       </div>
-
       <div class="status-row">
         <span>Case Registry</span>
-        <strong>READY</strong>
+        <strong>Ready</strong>
       </div>
-
       <div class="status-row">
         <span>Evidence Storage</span>
-        <strong>READY</strong>
+        <strong>Ready</strong>
       </div>
-
       <div class="status-row">
         <span>AI Detection Engine</span>
-        <strong>ONLINE</strong>
+        <strong>Online</strong>
       </div>
     </div>
-  </div>
-
+  </aside>
 </div>
 {% endblock %}
