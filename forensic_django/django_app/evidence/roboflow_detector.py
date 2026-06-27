@@ -3,6 +3,8 @@ import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from django.conf import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -87,7 +89,7 @@ def normalize_roboflow_prediction(pred, model_id):
 
 
 def run_roboflow_detection(image_path):
-    if os.environ.get("ENABLE_ROBOFLOW_DETECTION", "0") != "1":
+    if not getattr(settings, "ENABLE_ROBOFLOW_DETECTION", False):
         logger.info("Roboflow detection disabled. Set ENABLE_ROBOFLOW_DETECTION=1 to enable it.")
         return []
 

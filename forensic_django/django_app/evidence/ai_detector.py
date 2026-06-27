@@ -14,6 +14,16 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+from django.conf import settings
+
+from .model_registry import (
+    candidate_count,
+    confirmed_count,
+    dedupe_detections,
+    display_label,
+    run_registered_yolo_models,
+    weapons_found,
+)
 
 logger = logging.getLogger(__name__)
 _YOLO_MODEL_CACHE = {}
@@ -167,42 +177,6 @@ def _iou(a, b):
     return inter / union if union else 0
 
 
-def dedupe_detections(detections):
-    priority = {
-        "yolo_forensic_v2": 5,
-        "yolo_weapons": 4,
-        "roboflow": 3,
-        "local_cv": 2,
-        "gemini_vision": 1,
-    }
-    ordered = sorted(
-        detections,
-        key=lambda d: (
-            priority.get(str(d.get("source", "")).split(":")[0], 0),
-            d.get("confidence", 0),
-        ),
-        reverse=True,
-    )
-    kept = []
-    for det in ordered:
-        label = normalize_label(det.get("label", "evidence"))
-        det["label"] = label
-        bbox = det.get("bbox")
-        if not (isinstance(bbox, list) and len(bbox) == 4 and bbox[2] > bbox[0] and bbox[3] > bbox[1]):
-            det["bbox"] = None
-            bbox = None
-        duplicate = False
-        for old in kept:
-            old_label = normalize_label(old.get("label", "evidence"))
-            if bbox and old.get("bbox") and _iou(bbox, old["bbox"]) > 0.55:
-                if label == old_label or label in old_label or old_label in label:
-                    duplicate = True
-                    break
-        if not duplicate:
-            kept.append(det)
-    return kept
-
-
 # ──────────────────────────────────────────────
 # 1. YOLO — weapons only (free, local)
 # ──────────────────────────────────────────────
@@ -294,15 +268,19 @@ def run_cv_forensic_detection(image_path: str) -> list:
             continue
         bbox = [x, y, x + bw, y + bh]
         detections.append({
-            "label": "blood stain",
+            "label": "possible_blood_like_region",
+            "display_label": "Possible blood-like region",
             "confidence": 0.42,
             "bbox": bbox,
             "source": "local_cv",
-            "description": "Color/shape analysis found a possible blood stain region",
+            "model_name": "opencv_color_candidate",
+            "model_version": "not_a_trained_detector",
+            "verification_status": "candidate_unverified",
+            "description": "Color/shape analysis found a blood-like region. Analyst verification required.",
             "location": _bbox_to_location(bbox, image_path),
-            "forensic_significance": "high",
+            "forensic_significance": "medium",
             "color": get_label_color("blood"),
-            "notes": "Computer-vision fallback; verify with analyst review",
+            "notes": "Unverified candidate only; not counted as confirmed blood evidence.",
         })
         if len(detections) >= 3:
             break
@@ -328,15 +306,19 @@ def run_cv_forensic_detection(image_path: str) -> list:
     if best:
         bbox = best[1]
         detections.append({
-            "label": "possible fingerprint",
+            "label": "possible_fingerprint_like_ridge_region",
+            "display_label": "Possible fingerprint-like ridge region",
             "confidence": 0.38,
             "bbox": bbox,
             "source": "local_cv",
+            "model_name": "opencv_ridge_candidate",
+            "model_version": "not_a_trained_detector",
+            "verification_status": "candidate_unverified",
             "description": "Ridge-pattern analysis found a possible fingerprint-like region",
             "location": _bbox_to_location(bbox, image_path),
             "forensic_significance": "medium",
             "color": get_label_color("fingerprint"),
-            "notes": "Computer-vision fallback; confirm with fingerprint enhancement",
+            "notes": "Analyst verification required. This is not a trained fingerprint detection.",
         })
 
     return detections
@@ -410,7 +392,7 @@ def run_gemini_detection(image_path: str, api_key: str = None) -> dict:
             image_bytes = f.read()
 
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=getattr(settings, "GEMINI_MODEL", "gemini-2.0-flash"),
             contents=[
                 types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
                 GEMINI_PROMPT,
@@ -431,6 +413,10 @@ def run_gemini_detection(image_path: str, api_key: str = None) -> dict:
 
         for det in result.get("detections", []):
             det["source"] = "gemini_vision"
+            det["model_name"] = "gemini"
+            det["model_version"] = getattr(settings, "GEMINI_MODEL", "gemini-2.0-flash")
+            det["verification_status"] = "candidate_unverified"
+            det["display_label"] = display_label(normalize_label(det.get("label", "")))
             det["color"]  = get_label_color(det.get("label", ""))
             det["bbox"]   = None   # Gemini gives location string, not pixel coords
 
@@ -506,20 +492,19 @@ def fuse_detections(yolo_results: list, gemini_results: dict) -> list:
 def analyze_image(image_path: str, yolo_weights: str = None) -> dict:
     image_path = str(image_path)
     sources_used = []
+    source_models = []
 
-    # 1. Local YOLO forensic detection. v2 covers blood/shell casing; v1 gives
-    # an additional weapon pass for knife/gun/pistol/rifle/grenade.
-    yolo_results = []
-    if yolo_weights:
-        yolo_results.extend(run_yolo_detection(image_path, yolo_weights))
-    else:
-        for weights in _default_yolo_weights():
-            yolo_results.extend(run_yolo_detection(image_path, str(weights)))
+    yolo_results, source_models = run_registered_yolo_models(image_path)
     if yolo_results:
-        sources_used.append("yolo")
+        sources_used.append("local_yolo")
 
-    # 2. Roboflow forensic/evidence detection API
     roboflow_results = run_roboflow_detection(image_path)
+    for det in roboflow_results:
+        det.setdefault("model_name", "roboflow")
+        det.setdefault("model_version", str(det.get("source", "roboflow")).split(":", 1)[-1])
+        det.setdefault("verification_status", "candidate_unverified")
+        det.setdefault("display_label", display_label(normalize_label(det.get("label", ""))))
+        det["bbox"] = det.get("bbox") if det.get("bbox") else None
     if roboflow_results:
         sources_used.append("roboflow_api")
 
@@ -533,7 +518,7 @@ def analyze_image(image_path: str, yolo_weights: str = None) -> dict:
         fused.append(det)
 
     cv_results = []
-    if not fused or os.environ.get("ENABLE_CV_FALLBACK", "0") == "1":
+    if getattr(settings, "ENABLE_CV_CANDIDATES", False):
         cv_results = run_cv_forensic_detection(image_path)
     if cv_results:
         sources_used.append("local_cv")
@@ -542,7 +527,7 @@ def analyze_image(image_path: str, yolo_weights: str = None) -> dict:
     # 4. Optional Gemini semantic backup for evidence types that do not have
     # reliable local bounding-box classes yet, especially fingerprints and tool
     # marks. Keep it opt-in so offline/local runs do not stall on network calls.
-    if os.environ.get("ENABLE_GEMINI_BACKUP", "0") == "1":
+    if getattr(settings, "ENABLE_GEMINI_BACKUP", False):
         gemini_results = run_gemini_detection(image_path)
         gemini_detections = gemini_results.get("detections", [])
         backup_labels = ("fingerprint", "shoe print", "footprint", "tool mark", "suspicious object")
@@ -556,7 +541,7 @@ def analyze_image(image_path: str, yolo_weights: str = None) -> dict:
 
     # 5. Optional heavy local fallback. Disabled by default because YOLO-World
     # loads CLIP text embeddings and can be slow or memory-heavy on CPU laptops.
-    if not fused and os.environ.get("ENABLE_YOLO_WORLD_FALLBACK") == "1":
+    if not fused and getattr(settings, "ENABLE_YOLO_WORLD_FALLBACK", False):
         from .free_forensic_detector import run_free_forensic_detection
         free_results = run_free_forensic_detection(image_path)
         if free_results:
@@ -576,8 +561,15 @@ def analyze_image(image_path: str, yolo_weights: str = None) -> dict:
 
     return {
         "detections": fused,
-        "scene_summary": f"{len(fused)} forensic evidence item(s) detected using YOLO and Roboflow API.",
-        "evidence_count": len(fused),
+        "scene_summary": (
+            f"{confirmed_count(fused)} confirmed detection(s) and "
+            f"{candidate_count(fused)} unverified candidate(s) found."
+        ),
+        "evidence_count": confirmed_count(fused),
+        "confirmed_count": confirmed_count(fused),
+        "candidate_count": candidate_count(fused),
+        "weapons_found": weapons_found(fused),
         "scene_type": "unknown",
         "sources_used": sources_used,
+        "source_models": source_models,
     }

@@ -3,6 +3,7 @@ venv_forensic/
 venv/
 env/
 .venv/
+forensic_django/django_app/fenv/
 
 # ── Python ───────────────────────────────────────────────────────────
 __pycache__/

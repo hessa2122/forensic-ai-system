@@ -5,22 +5,69 @@ Adds approval guard and audit logging to all evidence operations.
 import json
 import logging
 import os
+import hashlib
+import time
 from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import UploadedFile
+from django.db import transaction
 from django.db.models import Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from django.utils import timezone
+from django.utils.text import get_valid_filename
 
 from .ai_detector import analyze_image
 from .models import DetectionResult, Evidence
+from .model_registry import confirmed_count, candidate_count, weapons_found
 from accounts.models import log_action
 
 logger = logging.getLogger(__name__)
 ANALYSIS_COPY_SUFFIXES = {'.jfif', '.jpe'}
+
+
+def _sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _validate_uploaded_image(uploaded: UploadedFile):
+    from PIL import Image, ImageFile, UnidentifiedImageError
+
+    if not uploaded or uploaded.size <= 0:
+        raise ValidationError('Uploaded file is empty.')
+    max_size = getattr(settings, 'EVIDENCE_MAX_UPLOAD_SIZE', 10 * 1024 * 1024)
+    if uploaded.size > max_size:
+        raise ValidationError(f'File is too large. Maximum allowed size is {max_size // (1024 * 1024)} MB.')
+    filename = get_valid_filename(Path(uploaded.name).name)
+    if not filename:
+        raise ValidationError('Invalid filename.')
+    allowed_formats = set(getattr(settings, 'EVIDENCE_ALLOWED_IMAGE_FORMATS', ('JPEG', 'PNG', 'WEBP', 'BMP')))
+    Image.MAX_IMAGE_PIXELS = getattr(settings, 'EVIDENCE_MAX_IMAGE_PIXELS', 40_000_000)
+    try:
+        uploaded.seek(0)
+        with Image.open(uploaded) as img:
+            img.verify()
+            fmt = (img.format or '').upper()
+            width, height = img.size
+    except Image.DecompressionBombError as exc:
+        raise ValidationError('Image is too large to process safely.') from exc
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ValidationError('File content is not a supported image.') from exc
+    finally:
+        uploaded.seek(0)
+    if fmt not in allowed_formats:
+        raise ValidationError(f'Unsupported image format: {fmt or "unknown"}.')
+    if width < getattr(settings, 'EVIDENCE_MIN_IMAGE_WIDTH', 16) or height < getattr(settings, 'EVIDENCE_MIN_IMAGE_HEIGHT', 16):
+        raise ValidationError('Image dimensions are too small for analysis.')
+    return filename
 
 
 def _case_for_user(case_id, user):
@@ -113,7 +160,7 @@ def _detection_bbox(det, width, height):
         y2 = max(0, min(height - 1, y2))
         if x2 > x1 and y2 > y1:
             return [x1, y1, x2, y2]
-    return _location_bbox(det.get('location'), width, height)
+    return None
 
 
 def _make_annotated_image(evidence, analysis_path, detections):
@@ -133,6 +180,8 @@ def _make_annotated_image(evidence, analysis_path, detections):
         for det in detections:
             color = det.get('color', '#ef4444')
             bbox  = _detection_bbox(det, width, height)
+            if not bbox:
+                continue
             label = _display_label(det.get('label'))
             conf  = det.get('confidence')
             text  = f"{label} {int(float(conf)*100)}%" if conf is not None else label
@@ -168,7 +217,15 @@ def _risk_color(risk):
 
 
 def _save_analysis(evidence):
+    started = time.perf_counter()
+    evidence.status = 'processing'
+    evidence.analysis_error = ''
+    evidence.analysis_started_at = timezone.now()
+    evidence.analysis_completed_at = None
+    evidence.save(update_fields=['status', 'analysis_error', 'analysis_started_at', 'analysis_completed_at'])
     analysis_path = _analysis_path(evidence)
+    evidence.original_sha256 = _sha256_file(evidence.file.path)
+    evidence.analysis_image_sha256 = _sha256_file(analysis_path)
     analysis = analyze_image(analysis_path)
     try:
         analysis['annotated_url'] = _make_annotated_image(
@@ -177,19 +234,58 @@ def _save_analysis(evidence):
     except Exception:
         logger.exception('Annotated image generation failed for evidence_id=%s', evidence.id)
         analysis['annotated_url'] = evidence.file.url
+    detections = analysis.get('detections', [])
+    duration_ms = int((time.perf_counter() - started) * 1000)
     DetectionResult.objects.update_or_create(
         evidence=evidence,
         defaults={
-            'detections_json': json.dumps(analysis.get('detections', [])),
+            'detections_json': json.dumps(detections),
+            'detections':      detections,
             'scene_summary':   analysis.get('scene_summary', ''),
-            'evidence_count':  analysis.get('evidence_count', 0),
+            'evidence_count':  analysis.get('confirmed_count', confirmed_count(detections)),
+            'confirmed_count': confirmed_count(detections),
+            'candidate_count': candidate_count(detections),
             'scene_type':      analysis.get('scene_type', 'unknown'),
             'sources_used':    ','.join(analysis.get('sources_used', [])),
+            'source_models':   analysis.get('source_models', []),
+            'analysis_duration_ms': duration_ms,
+            'annotated_image': analysis.get('annotated_url', ''),
+            'error_state':     '',
         },
     )
     evidence.status = 'analyzed'
-    evidence.save(update_fields=['status'])
+    evidence.analysis_completed_at = timezone.now()
+    evidence.model_versions = {
+        item.get('model_name'): item.get('model_version')
+        for item in analysis.get('source_models', [])
+        if item.get('model_name')
+    }
+    evidence.save(update_fields=[
+        'status', 'analysis_completed_at', 'original_sha256',
+        'analysis_image_sha256', 'model_versions',
+    ])
     return analysis
+
+
+def _mark_analysis_failed(evidence, message):
+    evidence.status = 'failed'
+    evidence.analysis_error = message
+    evidence.analysis_completed_at = timezone.now()
+    evidence.save(update_fields=['status', 'analysis_error', 'analysis_completed_at'])
+    DetectionResult.objects.update_or_create(
+        evidence=evidence,
+        defaults={
+            'detections_json': '[]',
+            'detections': [],
+            'scene_summary': '',
+            'evidence_count': 0,
+            'confirmed_count': 0,
+            'candidate_count': 0,
+            'sources_used': '',
+            'source_models': [],
+            'error_state': message,
+        },
+    )
 
 
 def _is_approved(user):
@@ -207,25 +303,36 @@ def upload_evidence(request, case_id):
     if not _is_approved(request.user):
         return render(request, 'accounts/pending_approval.html')
     case = _case_for_user(case_id, request.user)
+    upload_results = []
     if request.method == 'POST':
         files = request.FILES.getlist('evidence_files')
         for file in files:
-            evidence = Evidence.objects.create(
-                case=case,
-                uploaded_by=request.user,
-                file=file,
-                original_filename=file.name,
-                file_size=file.size,
-                notes=request.POST.get('notes', ''),
-            )
-            _save_analysis(evidence)
-            log_action(request.user, 'evidence_upload',
-                       target=f'Case #{case.case_number} / {file.name}')
+            try:
+                safe_name = _validate_uploaded_image(file)
+                with transaction.atomic():
+                    evidence = Evidence.objects.create(
+                        case=case,
+                        uploaded_by=request.user,
+                        file=file,
+                        original_filename=safe_name,
+                        file_size=file.size,
+                        notes=request.POST.get('notes', ''),
+                    )
+                try:
+                    _save_analysis(evidence)
+                    upload_results.append({'filename': safe_name, 'status': 'uploaded'})
+                    log_action(request.user, 'evidence_upload',
+                               target=f'Case #{case.case_number} / {safe_name}')
+                except Exception:
+                    logger.exception('Evidence detection failed for evidence_id=%s', evidence.id)
+                    _mark_analysis_failed(evidence, 'Analysis failed. You can retry reanalysis from the evidence page.')
+                    upload_results.append({'filename': safe_name, 'status': 'failed', 'error': evidence.analysis_error})
+            except ValidationError as exc:
+                upload_results.append({'filename': getattr(file, 'name', 'unknown'), 'status': 'rejected', 'error': '; '.join(exc.messages)})
         return redirect('evidence_list', case_id=case_id)
-    return render(request, 'evidence/upload.html', {'case': case})
+    return render(request, 'evidence/upload.html', {'case': case, 'upload_results': upload_results})
 
 
-@csrf_exempt
 @require_http_methods(['POST'])
 def api_upload_evidence(request):
     if not request.user.is_authenticated:
@@ -249,11 +356,16 @@ def api_upload_evidence(request):
     except (Http404, ValueError):
         return JsonResponse({'error': 'Selected case is not available for upload.'}, status=404)
 
+    try:
+        safe_name = _validate_uploaded_image(image)
+    except ValidationError as exc:
+        return JsonResponse({'error': '; '.join(exc.messages)}, status=400)
+
     evidence = Evidence.objects.create(
         case=case,
         uploaded_by=request.user,
         file=image,
-        original_filename=image.name,
+        original_filename=safe_name,
         file_size=image.size,
         notes=request.POST.get('notes', ''),
     )
@@ -262,14 +374,14 @@ def api_upload_evidence(request):
         analysis = _save_analysis(evidence)
     except Exception as exc:
         logger.exception('Evidence detection failed for evidence_id=%s', evidence.id)
+        _mark_analysis_failed(evidence, 'Detection failed on the server. You can retry reanalysis.')
         return JsonResponse({
             'error':       'Detection failed on the server.',
-            'detail':      str(exc),
             'evidence_id': evidence.id,
         }, status=500)
 
     log_action(request.user, 'evidence_upload',
-               target=f'Case #{case.case_number} / {image.name}')
+               target=f'Case #{case.case_number} / {safe_name}')
 
     dashboard_detections = [_dashboard_detection(d) for d in analysis.get('detections', [])]
     risk = _overall_risk(dashboard_detections)
@@ -282,7 +394,7 @@ def api_upload_evidence(request):
         'detections':      dashboard_detections,
         'raw_detections':  analysis.get('detections', []),
         'total_objects':   len(dashboard_detections),
-        'weapons_found':   any(d['risk_level'] in {'high', 'critical'} for d in dashboard_detections),
+        'weapons_found':   weapons_found(analysis.get('detections', [])),
         'overall_risk':    risk,
         'risk_color':      _risk_color(risk),
         'scene_summary':   analysis.get('scene_summary', ''),
@@ -299,7 +411,7 @@ def evidence_list(request, case_id):
     for ev in evidence_items:
         try:
             dr = ev.detectionresult
-            ev.detections    = json.loads(dr.detections_json)
+            ev.detections    = dr.detections or json.loads(dr.detections_json)
             ev.scene_summary = dr.scene_summary
             ev.evidence_count = dr.evidence_count
         except DetectionResult.DoesNotExist:
@@ -324,19 +436,26 @@ def evidence_detail(request, evidence_id):
         )
     try:
         dr = evidence.detectionresult
-        detections   = json.loads(dr.detections_json)
+        detections   = dr.detections or json.loads(dr.detections_json)
         scene_summary = dr.scene_summary
         sources_used  = [s for s in dr.sources_used.split(',') if s]
+        annotated_url = dr.annotated_image or ''
     except DetectionResult.DoesNotExist:
         detections   = []
         scene_summary = ''
         sources_used  = []
+        annotated_url = ''
+    confirmed = [d for d in detections if d.get('verification_status') == 'model_detected']
+    candidates = [d for d in detections if d.get('verification_status') == 'candidate_unverified']
     return render(request, 'evidence/detail.html', {
         'evidence':       evidence,
         'detections':     detections,
+        'confirmed_detections': confirmed,
+        'candidate_detections': candidates,
         'detections_json': json.dumps(detections),
         'scene_summary':  scene_summary,
         'sources_used':   sources_used,
+        'annotated_url':  annotated_url,
     })
 
 
@@ -349,7 +468,12 @@ def reanalyze_evidence(request, evidence_id):
         evidence = get_object_or_404(Evidence, id=evidence_id)
     else:
         evidence = get_object_or_404(Evidence, id=evidence_id, case__created_by=request.user)
-    analysis = _save_analysis(evidence)
+    try:
+        analysis = _save_analysis(evidence)
+    except Exception:
+        logger.exception('Evidence reanalysis failed for evidence_id=%s', evidence.id)
+        _mark_analysis_failed(evidence, 'Reanalysis failed. Check server logs and retry.')
+        return JsonResponse({'status': 'failed', 'error': evidence.analysis_error}, status=500)
     log_action(request.user, 'analysis_run',
                target=f'Evidence #{evidence_id}')
     return JsonResponse({

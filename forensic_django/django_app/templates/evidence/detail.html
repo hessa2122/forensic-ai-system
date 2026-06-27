@@ -602,8 +602,16 @@
     <div class="hero-meta">
       <span class="meta-pill">Uploaded: <strong>{{ evidence.created_at|date:"M d, Y H:i" }}</strong></span>
       <span class="meta-pill">Detections: <strong>{{ detections|length }}</strong></span>
+      <span class="meta-pill">Status: <strong>{{ evidence.status|title }}</strong></span>
     </div>
   </section>
+
+  {% if evidence.status == "failed" %}
+    <section class="scene-box" style="margin:0 0 18px;">
+      <strong>Analysis Failed</strong>
+      {{ evidence.analysis_error|default:"The analysis could not be completed. Please retry reanalysis." }}
+    </section>
+  {% endif %}
 
   <section class="layout">
 
@@ -617,7 +625,7 @@
 
       <div class="image-stage">
         <div class="img-wrap" id="img-wrap">
-          <img src="{{ evidence.file.url }}" id="ev-image" alt="{{ evidence.original_filename }}" onload="drawBboxes()">
+          <img src="{% if annotated_url %}{{ annotated_url }}{% else %}{{ evidence.file.url }}{% endif %}" id="ev-image" alt="{{ evidence.original_filename }}" onload="drawBboxes()">
           <svg class="bbox-overlay" id="bbox-svg" viewBox="0 0 1 1" preserveAspectRatio="none"></svg>
         </div>
       </div>
@@ -641,13 +649,13 @@
 
       <div class="summary-grid">
         <div class="summary-card">
-          <small>Total Detections</small>
-          <h3>{{ detections|length }}</h3>
+          <small>Confirmed</small>
+          <h3>{{ confirmed_detections|length }}</h3>
         </div>
 
         <div class="summary-card">
-          <small>AI Status</small>
-          <h3 style="color:#86efac;">Ready</h3>
+          <small>Unverified</small>
+          <h3 style="color:#fcd34d;">{{ candidate_detections|length }}</h3>
         </div>
       </div>
 
@@ -702,6 +710,11 @@
                 {% endif %}
 
                 <div class="det-src">Source: {{ det.source }}</div>
+                <div class="det-src">Model: {{ det.model_name|default:"unknown" }} {{ det.model_version|default:"" }}</div>
+                <div class="det-src">Verification: {{ det.verification_status|default:"unknown" }}</div>
+                {% if not det.bbox %}
+                  <div class="det-src">Bounding box: Not available</div>
+                {% endif %}
               </div>
             {% endfor %}
           {% else %}

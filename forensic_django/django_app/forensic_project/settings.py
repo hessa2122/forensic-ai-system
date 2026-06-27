@@ -16,6 +16,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -27,9 +34,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'change-me-in-prod')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env_bool('DJANGO_DEBUG', True)
 
-ALLOWED_HOSTS = [h for h in os.getenv('DJANGO_ALLOWED_HOSTS', '*').split(',') if h.strip()]
+ALLOWED_HOSTS = [h.strip() for h in os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',') if h.strip()]
 
 try:
     from decouple import config
@@ -161,6 +168,24 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = "/dashboard/"          # change to your home/dashboard URL
 LOGOUT_REDIRECT_URL = '/login/'
+
+
+# Evidence upload and local-first detection controls.
+EVIDENCE_MAX_UPLOAD_SIZE = int(os.getenv('EVIDENCE_MAX_UPLOAD_SIZE', 10 * 1024 * 1024))
+EVIDENCE_ALLOWED_IMAGE_FORMATS = tuple(
+    fmt.strip().upper()
+    for fmt in os.getenv('EVIDENCE_ALLOWED_IMAGE_FORMATS', 'JPEG,PNG,WEBP,BMP').split(',')
+    if fmt.strip()
+)
+EVIDENCE_MIN_IMAGE_WIDTH = int(os.getenv('EVIDENCE_MIN_IMAGE_WIDTH', 16))
+EVIDENCE_MIN_IMAGE_HEIGHT = int(os.getenv('EVIDENCE_MIN_IMAGE_HEIGHT', 16))
+EVIDENCE_MAX_IMAGE_PIXELS = int(os.getenv('EVIDENCE_MAX_IMAGE_PIXELS', 40_000_000))
+ENABLE_CV_CANDIDATES = env_bool('ENABLE_CV_CANDIDATES', False)
+ENABLE_GEMINI_BACKUP = env_bool('ENABLE_GEMINI_BACKUP', False)
+ENABLE_ROBOFLOW_DETECTION = env_bool('ENABLE_ROBOFLOW_DETECTION', False)
+ENABLE_YOLO_WORLD_FALLBACK = env_bool('ENABLE_YOLO_WORLD_FALLBACK', False)
+GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+SERVE_MEDIA_FILES = env_bool('DJANGO_SERVE_MEDIA', True)
 
 
 # ─── Logging (useful for API debugging) ───────────────────────

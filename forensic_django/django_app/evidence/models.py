@@ -10,9 +10,11 @@ from django.utils import timezone
 
 class Evidence(models.Model):
     STATUS_CHOICES = [
-        ("pending",  "Pending"),
+        ("pending", "Pending"),
+        ("processing", "Processing"),
         ("analyzed", "Analyzed"),
-        ("flagged",  "Flagged"),
+        ("failed", "Failed"),
+        ("flagged", "Flagged"),
     ]
 
     # null=True on ForeignKeys matches your existing DB schema
@@ -25,6 +27,12 @@ class Evidence(models.Model):
     status            = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     analyzed_at       = models.DateTimeField(default=timezone.now)   # keep original field name
     notes             = models.TextField(blank=True, default="")
+    analysis_error    = models.TextField(blank=True, default="")
+    analysis_started_at = models.DateTimeField(null=True, blank=True)
+    analysis_completed_at = models.DateTimeField(null=True, blank=True)
+    original_sha256   = models.CharField(max_length=64, blank=True, default="")
+    analysis_image_sha256 = models.CharField(max_length=64, blank=True, default="")
+    model_versions    = models.JSONField(blank=True, default=dict)
 
     class Meta:
         ordering = ["-analyzed_at"]
@@ -41,10 +49,17 @@ class Evidence(models.Model):
 class DetectionResult(models.Model):
     evidence        = models.OneToOneField(Evidence, on_delete=models.CASCADE)
     detections_json = models.TextField(default="[]")
+    detections      = models.JSONField(blank=True, default=list)
     scene_summary   = models.TextField(blank=True, default="")
     evidence_count  = models.IntegerField(default=0)
+    confirmed_count = models.IntegerField(default=0)
+    candidate_count = models.IntegerField(default=0)
     scene_type      = models.CharField(max_length=50, default="unknown")
     sources_used    = models.CharField(max_length=100, blank=True, default="")
+    source_models   = models.JSONField(blank=True, default=list)
+    analysis_duration_ms = models.PositiveIntegerField(default=0)
+    annotated_image = models.CharField(max_length=500, blank=True, default="")
+    error_state     = models.TextField(blank=True, default="")
     analyzed_at     = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
