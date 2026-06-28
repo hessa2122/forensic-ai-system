@@ -687,7 +687,7 @@
             {% for det in detections %}
               <div class="det-card" style="--clr: {{ det.color }}" data-index="{{ forloop.counter0 }}" onclick="highlightDetection({{ forloop.counter0 }})">
                 <div class="det-top">
-                  <div class="det-label">{{ det.label }}</div>
+                  <div class="det-label">{{ det.display_label|default:det.label }}</div>
                   {% if det.confidence %}
                     <div class="conf-pill">{% widthratio det.confidence 1 100 %}%</div>
                   {% endif %}
@@ -709,6 +709,9 @@
                   <div class="det-notes">{{ det.notes }}</div>
                 {% endif %}
 
+                {% if det.bbox %}
+                  <div class="det-src">Bounding box: {{ det.bbox }}</div>
+                {% endif %}
                 <div class="det-src">Source: {{ det.source }}</div>
                 <div class="det-src">Model: {{ det.model_name|default:"unknown" }} {{ det.model_version|default:"" }}</div>
                 <div class="det-src">Verification: {{ det.verification_status|default:"unknown" }}</div>
@@ -732,8 +735,9 @@
 
 </main>
 
+{{ detections|json_script:"detections-data" }}
 <script>
-const DETECTIONS = {{ detections_json|safe }};
+const DETECTIONS = JSON.parse(document.getElementById('detections-data').textContent);
 let naturalW = 0;
 let naturalH = 0;
 let activeIndex = null;
@@ -771,7 +775,7 @@ function drawBboxes() {
     svg.appendChild(rect);
 
     const conf = det.confidence ? ` ${Math.round(det.confidence * 100)}%` : '';
-    const txt = `${det.label}${conf}`;
+    const txt = `${det.display_label || det.label}${conf}`;
     const lblH = 20;
     const lblW = txt.length * 7.4 + 12;
     const lblY = y1 > lblH ? y1 - lblH : y1 + h;

@@ -493,6 +493,16 @@
     </a>
   </section>
 
+  {% if messages %}
+    <section style="display:grid;gap:10px;margin-bottom:18px;">
+      {% for message in messages %}
+        <div class="summary-card" style="border-color:{% if message.tags == 'success' %}rgba(34,197,94,0.35){% else %}rgba(239,68,68,0.35){% endif %};">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </section>
+  {% endif %}
+
   <section class="summary-grid">
     <div class="summary-card">
       <small>Total Evidence</small>
@@ -527,7 +537,7 @@
           {% endif %}
 
           <div class="det-badge">
-            {{ ev.evidence_count }} detections
+            {{ ev.evidence_count }} confirmed
           </div>
         </div>
 
@@ -545,7 +555,7 @@
 
           <div class="chips">
             {% for det in ev.detections|slice:":4" %}
-              <span class="chip">{{ det.label }}</span>
+              <span class="chip">{{ det.display_label|default:det.label }}</span>
             {% empty %}
               <span class="chip empty-chip">No detections</span>
             {% endfor %}

@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import UploadedFile
@@ -23,7 +24,8 @@ from django.utils.text import get_valid_filename
 
 from .ai_detector import analyze_image
 from .models import DetectionResult, Evidence
-from .model_registry import confirmed_count, candidate_count, weapons_found
+from .model_registry import candidate_count, confirmed_count, count_label, display_label, weapons_found
+from .services.detection_pipeline import WEAPON_LABELS
 from accounts.models import log_action
 
 logger = logging.getLogger(__name__)
@@ -128,7 +130,7 @@ def _analysis_path(evidence):
 
 
 def _display_label(label):
-    return str(label or 'Evidence').replace('_', ' ').title()
+    return display_label(label)
 
 
 def _location_bbox(location, width, height):
@@ -196,7 +198,7 @@ def _make_annotated_image(evidence, analysis_path, detections):
             draw.text((x1 + 5, label_y + 4), text, fill='white', font=font)
         img.save(out_path, 'JPEG', quality=92)
 
-    return f"{settings.MEDIA_URL}results/annotated/{out_path.name}"
+    return f"results/annotated/{out_path.name}"
 
 
 def _overall_risk(detections):
@@ -260,9 +262,10 @@ def _save_analysis(evidence):
         for item in analysis.get('source_models', [])
         if item.get('model_name')
     }
+    evidence.analysis_error = ''
     evidence.save(update_fields=[
         'status', 'analysis_completed_at', 'original_sha256',
-        'analysis_image_sha256', 'model_versions',
+        'analysis_image_sha256', 'model_versions', 'analysis_error',
     ])
     return analysis
 
@@ -329,6 +332,11 @@ def upload_evidence(request, case_id):
                     upload_results.append({'filename': safe_name, 'status': 'failed', 'error': evidence.analysis_error})
             except ValidationError as exc:
                 upload_results.append({'filename': getattr(file, 'name', 'unknown'), 'status': 'rejected', 'error': '; '.join(exc.messages)})
+        for item in upload_results:
+            if item['status'] == 'uploaded':
+                messages.success(request, f"{item['filename']} uploaded and analyzed.")
+            else:
+                messages.error(request, f"{item['filename']}: {item.get('error', 'Upload failed.')}")
         return redirect('evidence_list', case_id=case_id)
     return render(request, 'evidence/upload.html', {'case': case, 'upload_results': upload_results})
 
@@ -390,7 +398,7 @@ def api_upload_evidence(request):
         'evidence_id':     evidence.id,
         'filename':        evidence.original_filename,
         'image_url':       evidence.file.url,
-        'annotated_url':   analysis.get('annotated_url', evidence.file.url),
+        'annotated_url':   settings.MEDIA_URL + analysis.get('annotated_url', '') if analysis.get('annotated_url') else evidence.file.url,
         'detections':      dashboard_detections,
         'raw_detections':  analysis.get('detections', []),
         'total_objects':   len(dashboard_detections),
@@ -447,6 +455,8 @@ def evidence_detail(request, evidence_id):
         annotated_url = ''
     confirmed = [d for d in detections if d.get('verification_status') == 'model_detected']
     candidates = [d for d in detections if d.get('verification_status') == 'candidate_unverified']
+    if annotated_url and not annotated_url.startswith(('http://', 'https://', settings.MEDIA_URL)):
+        annotated_url = settings.MEDIA_URL + annotated_url
     return render(request, 'evidence/detail.html', {
         'evidence':       evidence,
         'detections':     detections,
@@ -456,6 +466,11 @@ def evidence_detail(request, evidence_id):
         'scene_summary':  scene_summary,
         'sources_used':   sources_used,
         'annotated_url':  annotated_url,
+        'confirmed_count': len(confirmed),
+        'candidate_count': len(candidates),
+        'blood_count': count_label(detections, {'blood_stain'}),
+        'fingerprint_count': count_label(detections, {'fingerprint'}),
+        'weapon_count': count_label(detections, WEAPON_LABELS),
     })
 
 
@@ -467,7 +482,11 @@ def reanalyze_evidence(request, evidence_id):
     if request.user.is_staff:
         evidence = get_object_or_404(Evidence, id=evidence_id)
     else:
-        evidence = get_object_or_404(Evidence, id=evidence_id, case__created_by=request.user)
+        evidence = get_object_or_404(
+            Evidence,
+            Q(case__created_by=request.user) | Q(case__assigned_to=request.user),
+            id=evidence_id,
+        )
     try:
         analysis = _save_analysis(evidence)
     except Exception:
@@ -493,7 +512,11 @@ def delete_evidence(request, evidence_id):
     if request.user.is_staff:
         evidence = get_object_or_404(Evidence, id=evidence_id)
     else:
-        evidence = get_object_or_404(Evidence, id=evidence_id, case__created_by=request.user)
+        evidence = get_object_or_404(
+            Evidence,
+            Q(case__created_by=request.user) | Q(case__assigned_to=request.user),
+            id=evidence_id,
+        )
     case_id = evidence.case.id
     fn = evidence.original_filename
     if evidence.file and os.path.exists(evidence.file.path):

@@ -679,6 +679,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/PLYLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
+{{ clusters|json_script:"clusters-data" }}
 <script>
 'use strict';
 
@@ -687,8 +688,9 @@
 // ═════════════════════════════════════════════════════════════════════════════
 const MESH_URL   = {% if mesh_url %}"{{ mesh_url|escapejs }}"{% else %}null{% endif %};
 const MESH_TYPE  = "{{ mesh_type|default:'glb' }}";
+const PLY_URL    = {% if ply_url %}"{{ ply_url|escapejs }}"{% else %}null{% endif %};
 const DEPTH_URL  = {% if depth_url %}"{{ depth_url|escapejs }}"{% else %}null{% endif %};
-const CLUSTERS   = {{ clusters|default:"[]"|safe }};
+const CLUSTERS   = JSON.parse(document.getElementById('clusters-data').textContent);
 const EVIDENCE_ID = {% if evidence %}{{ evidence.pk }}{% else %}null{% endif %};
 const SCENE_ID   = {% if scene_id %}{{ scene_id }}{% else %}null{% endif %};
 
@@ -820,9 +822,8 @@ function loadGLB(url) {
     },
     (err) => {
       console.warn('GLB load error, trying PLY fallback:', err);
-      // Try PLY fallback at same base URL
-      const plyUrl = url.replace(/\.glb$/i, '.ply');
-      loadPLY(plyUrl);
+      if (PLY_URL) loadPLY(PLY_URL);
+      else showError('Failed to load GLB and no PLY fallback URL was provided.');
     }
   );
 }

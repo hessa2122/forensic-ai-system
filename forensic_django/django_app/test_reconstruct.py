@@ -1,9 +1,9 @@
 import sys
 
-import requests
-
 
 def main():
+    import requests
+
     evidence_id = sys.argv[1] if len(sys.argv) > 1 else "4"
     url = f"http://127.0.0.1:8000/api/reconstruct/{evidence_id}/"
     response = requests.post(url, timeout=30)

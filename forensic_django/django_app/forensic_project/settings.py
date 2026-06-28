@@ -186,6 +186,23 @@ ENABLE_ROBOFLOW_DETECTION = env_bool('ENABLE_ROBOFLOW_DETECTION', False)
 ENABLE_YOLO_WORLD_FALLBACK = env_bool('ENABLE_YOLO_WORLD_FALLBACK', False)
 GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
 SERVE_MEDIA_FILES = env_bool('DJANGO_SERVE_MEDIA', True)
+FORENSIC_WEAPON_WEIGHTS = os.getenv('FORENSIC_WEAPON_WEIGHTS', '')
+FORENSIC_BLOOD_WEIGHTS = os.getenv('FORENSIC_BLOOD_WEIGHTS', '')
+FORENSIC_FINGERPRINT_WEIGHTS = os.getenv('FORENSIC_FINGERPRINT_WEIGHTS', '')
+FORENSIC_COMBINED_WEIGHTS = os.getenv('FORENSIC_COMBINED_WEIGHTS', '')
+FORENSIC_NMS_IOU_THRESHOLD = float(os.getenv('FORENSIC_NMS_IOU_THRESHOLD', '0.55'))
+FORENSIC_YOLO_IMAGE_SIZE = int(os.getenv('FORENSIC_YOLO_IMAGE_SIZE', '768'))
+FORENSIC_CLASS_THRESHOLDS = {
+    'blood_stain': float(os.getenv('FORENSIC_CONF_BLOOD_STAIN', '0.35')),
+    'fingerprint': float(os.getenv('FORENSIC_CONF_FINGERPRINT', '0.40')),
+    'shell_casing': float(os.getenv('FORENSIC_CONF_SHELL_CASING', '0.30')),
+    'gun': float(os.getenv('FORENSIC_CONF_GUN', '0.35')),
+    'pistol': float(os.getenv('FORENSIC_CONF_PISTOL', '0.35')),
+    'handgun': float(os.getenv('FORENSIC_CONF_HANDGUN', '0.35')),
+    'rifle': float(os.getenv('FORENSIC_CONF_RIFLE', '0.35')),
+    'knife': float(os.getenv('FORENSIC_CONF_KNIFE', '0.30')),
+    'grenade': float(os.getenv('FORENSIC_CONF_GRENADE', '0.35')),
+}
 
 
 # ─── Logging (useful for API debugging) ───────────────────────

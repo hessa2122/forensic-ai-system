@@ -30,8 +30,8 @@ from pathlib import Path
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, render
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from evidence.models import Evidence
@@ -57,6 +57,20 @@ def _media_path(field) -> str | None:
     """Return absolute filesystem path for a FileField, or None if empty."""
     if not field:
         return None
+
+
+def _sibling_ply_url(field) -> str | None:
+    path = _media_path(field)
+    if not path:
+        return None
+    ply_path = Path(path).with_suffix(".ply")
+    if not ply_path.exists():
+        return None
+    try:
+        rel = ply_path.relative_to(Path(settings.MEDIA_ROOT)).as_posix()
+    except ValueError:
+        return None
+    return settings.MEDIA_URL + rel
     try:
         return field.path
     except Exception:
@@ -77,9 +91,29 @@ def _out_paths(scene_id: int) -> dict[str, str]:
     }
 
 
+def _is_approved(user) -> bool:
+    if user.is_staff:
+        return True
+    try:
+        return bool(user.profile.is_approved)
+    except Exception:
+        return False
+
+
+def _permitted_evidence_queryset(user):
+    qs = Evidence.objects.select_related("case", "uploaded_by")
+    if user.is_staff:
+        return qs
+    return qs.filter(Q(case__created_by=user) | Q(case__assigned_to=user) | Q(uploaded_by=user))
+
+
+def _get_permitted_evidence(user, evidence_id: int):
+    return get_object_or_404(_permitted_evidence_queryset(user), pk=evidence_id)
+
+
 # ─── reconstruct ─────────────────────────────────────────────────────────────
 
-@csrf_exempt
+@login_required
 @require_POST
 def reconstruct_api(request):
     """
@@ -92,14 +126,17 @@ def reconstruct_api(request):
     except (KeyError, ValueError, json.JSONDecodeError) as exc:
         return JsonResponse({"error": f"Bad request: {exc}"}, status=400)
 
-    evidence = get_object_or_404(Evidence, pk=ev_id)
+    if not _is_approved(request.user):
+        return JsonResponse({"error": "Account pending admin approval.", "code": "account_unapproved"}, status=403)
+
+    evidence = _get_permitted_evidence(request.user, ev_id)
 
     if not evidence.file:
         return JsonResponse({"error": "Evidence has no file attached."}, status=400)
 
     image_path = _media_path(evidence.file)
     if not image_path or not Path(image_path).exists():
-        return JsonResponse({"error": f"Evidence file not found: {image_path}"}, status=400)
+        return JsonResponse({"error": "Evidence file is unavailable.", "code": "evidence_file_missing"}, status=400)
 
     if evidence.case_id is None:
         return JsonResponse({"error": "Evidence must belong to a case before 3D reconstruction."}, status=400)
@@ -131,7 +168,11 @@ def reconstruct_api(request):
         log.exception("build_scene failed for evidence %d", ev_id)
         scene.error_message = str(exc)
         scene.save()
-        return JsonResponse({"error": str(exc)}, status=500)
+        return JsonResponse({
+            "error": "Reconstruction failed on the server.",
+            "code": "reconstruction_failed",
+            "scene_id": scene.pk,
+        }, status=500)
 
     # persist relative paths (relative to MEDIA_ROOT)
     media_root = Path(settings.MEDIA_ROOT)
@@ -162,6 +203,7 @@ def reconstruct_api(request):
     scene.save()
 
     mesh_url = _media_url(scene.ply_file)
+    ply_url = _sibling_ply_url(scene.ply_file) or mesh_url
     depth_url = _media_url(scene.depth_map)
 
     return JsonResponse({
@@ -181,9 +223,14 @@ def reconstruct_api(request):
 
 # ─── list ─────────────────────────────────────────────────────────────────────
 
+@login_required
 def reconstructions_api(request):
     """Return JSON list of all scene records (latest first)."""
+    if not _is_approved(request.user):
+        return JsonResponse({"error": "Account pending admin approval.", "code": "account_unapproved"}, status=403)
     scenes = SceneReconstruction.objects.select_related("evidence", "case")
+    if not request.user.is_staff:
+        scenes = scenes.filter(Q(case__created_by=request.user) | Q(case__assigned_to=request.user) | Q(evidence__uploaded_by=request.user))
     case_id = request.GET.get("case_id")
     if case_id:
         scenes = scenes.filter(case_id=case_id)
@@ -215,9 +262,15 @@ def reconstructions_api(request):
 
 # ─── scene data ───────────────────────────────────────────────────────────────
 
+@login_required
 def reconstruction_scene_data_api(request, scene_id: int):
     """Return metadata + file URLs for a specific scene."""
-    scene = get_object_or_404(SceneReconstruction, pk=scene_id)
+    if not _is_approved(request.user):
+        return JsonResponse({"error": "Account pending admin approval.", "code": "account_unapproved"}, status=403)
+    scenes = SceneReconstruction.objects.select_related("case", "evidence")
+    if not request.user.is_staff:
+        scenes = scenes.filter(Q(case__created_by=request.user) | Q(case__assigned_to=request.user) | Q(evidence__uploaded_by=request.user))
+    scene = get_object_or_404(scenes, pk=scene_id)
 
     mesh_url  = _media_url(scene.ply_file)
     depth_url = _media_url(scene.depth_map)
@@ -236,6 +289,7 @@ def reconstruction_scene_data_api(request, scene_id: int):
         "mesh_url":     mesh_url,
         "mesh_type":    mesh_type,
         "depth_url":    depth_url,
+        "ply_url":      ply_url,
         "success":      scene.success,
         "error":        scene.error_message,
     })
@@ -243,9 +297,12 @@ def reconstruction_scene_data_api(request, scene_id: int):
 
 # ─── viewer page ──────────────────────────────────────────────────────────────
 
+@login_required
 def reconstruction_view(request, evidence_id: int):
     """Render the 3D viewer template for a given evidence item."""
-    evidence = get_object_or_404(Evidence, pk=evidence_id)
+    if not _is_approved(request.user):
+        return JsonResponse({"error": "Account pending admin approval.", "code": "account_unapproved"}, status=403)
+    evidence = _get_permitted_evidence(request.user, evidence_id)
     scene = SceneReconstruction.objects.filter(
         evidence=evidence,
         success=True,
@@ -254,11 +311,13 @@ def reconstruction_view(request, evidence_id: int):
 
     mesh_url  = None
     mesh_type = "glb"
+    ply_url   = None
     depth_url = None
     clusters  = []
 
     if scene and scene.success:
         mesh_url  = _media_url(scene.ply_file)
+        ply_url   = _sibling_ply_url(scene.ply_file) or mesh_url
         depth_url = _media_url(scene.depth_map)
         clusters  = scene.clusters_json or []
         if mesh_url and mesh_url.lower().endswith(".ply"):
@@ -269,17 +328,21 @@ def reconstruction_view(request, evidence_id: int):
         "scene":      scene,
         "mesh_url":   mesh_url,
         "mesh_type":  mesh_type,
+        "ply_url":    ply_url,
         "depth_url":  depth_url,
-        "clusters":   json.dumps(clusters),
+        "clusters":   clusters,
         "scene_id":   scene.pk if scene else None,
     })
 
 
 # ─── evidence data shortcut ───────────────────────────────────────────────────
 
+@login_required
 def reconstruction_data_api(request, evidence_id: int):
     """Return the latest reconstruction data for a given evidence item."""
-    evidence = get_object_or_404(Evidence, pk=evidence_id)
+    if not _is_approved(request.user):
+        return JsonResponse({"error": "Account pending admin approval.", "code": "account_unapproved"}, status=403)
+    evidence = _get_permitted_evidence(request.user, evidence_id)
     scene = SceneReconstruction.objects.filter(
         evidence=evidence,
         success=True,

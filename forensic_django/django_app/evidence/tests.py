@@ -18,6 +18,7 @@ from evidence.model_registry import (
     normalize_label,
     weapons_found,
 )
+from evidence.services.detection_pipeline import MODEL_SPECS, count_label, display_label, get_model_health
 from evidence.models import DetectionResult, Evidence
 from evidence.views import _validate_uploaded_image
 
@@ -93,14 +94,18 @@ class EvidenceUploadTests(TestCase):
 
 
 class DetectionRegistryTests(TestCase):
-    def test_local_registry_does_not_claim_fingerprint_support(self):
-        configured = set().union(*(item["allowed_classes"] for item in MODEL_REGISTRY.values()))
-        self.assertNotIn("fingerprint", configured)
-        self.assertNotIn("fingerprint", CONFIRMED_FORENSIC_CLASSES)
+    def test_fingerprint_support_requires_matching_configured_weights(self):
+        self.assertIn("fingerprint", MODEL_SPECS["forensic_fingerprint_v1"]["intended_classes"])
+        health = get_model_health(load_classes=False)
+        fingerprint = next(item for item in health if item["model_name"] == "forensic_fingerprint_v1")
+        self.assertFalse(fingerprint["ready"])
 
     def test_blood_and_shell_casing_normalization(self):
-        self.assertEqual(normalize_label("blood stain"), "blood")
+        self.assertEqual(normalize_label("blood stain"), "blood_stain")
+        self.assertEqual(normalize_label("bloodstain"), "blood_stain")
         self.assertEqual(normalize_label("shell casing"), "shell_casing")
+        self.assertEqual(display_label("blood_stain"), "Blood Stain")
+        self.assertEqual(display_label("fingerprint"), "Fingerprint")
 
     def test_bbox_clamping_and_invalid_rejection(self):
         self.assertEqual(clamp_bbox([-10, 5, 120, 70], 100, 50), [0, 5, 99, 49])
@@ -109,8 +114,8 @@ class DetectionRegistryTests(TestCase):
 
     def test_class_aware_duplicate_removal(self):
         detections = [
-            {"label": "blood", "confidence": 0.7, "bbox": [0, 0, 20, 20]},
-            {"label": "blood", "confidence": 0.9, "bbox": [1, 1, 21, 21]},
+            {"label": "blood_stain", "confidence": 0.7, "bbox": [0, 0, 20, 20]},
+            {"label": "blood_stain", "confidence": 0.9, "bbox": [1, 1, 21, 21]},
             {"label": "knife", "confidence": 0.8, "bbox": [1, 1, 21, 21]},
         ]
         kept = dedupe_detections(detections)
@@ -119,9 +124,11 @@ class DetectionRegistryTests(TestCase):
 
     def test_weapon_calculation_excludes_blood_and_candidates(self):
         detections = [
-            {"label": "blood", "verification_status": "model_detected"},
+            {"label": "blood_stain", "verification_status": "model_detected"},
             {"label": "possible_fingerprint_like_ridge_region", "verification_status": "candidate_unverified"},
         ]
         self.assertFalse(weapons_found(detections))
         self.assertEqual(confirmed_count(detections), 1)
         self.assertEqual(candidate_count(detections), 1)
+        self.assertEqual(count_label(detections, {"blood_stain"}), 1)
+        self.assertEqual(count_label(detections, {"fingerprint"}), 0)
