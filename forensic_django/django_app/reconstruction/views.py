@@ -57,6 +57,10 @@ def _media_path(field) -> str | None:
     """Return absolute filesystem path for a FileField, or None if empty."""
     if not field:
         return None
+    try:
+        return field.path
+    except Exception:
+        return None
 
 
 def _sibling_ply_url(field) -> str | None:
@@ -71,10 +75,6 @@ def _sibling_ply_url(field) -> str | None:
     except ValueError:
         return None
     return settings.MEDIA_URL + rel
-    try:
-        return field.path
-    except Exception:
-        return None
 
 
 def _out_paths(scene_id: int) -> dict[str, str]:
@@ -213,7 +213,7 @@ def reconstruct_api(request):
         "clusters":     scene.clusters_json,
         "mesh_url":     mesh_url,
         "mesh_type":    mesh_type,
-        "ply_url":      mesh_url,
+        "ply_url":      ply_url,
         "depth_url":    depth_url,
         "glb_ok":       meta.get("glb_ok", False),
         "ply_ok":       meta.get("ply_ok", False),
@@ -274,6 +274,7 @@ def reconstruction_scene_data_api(request, scene_id: int):
 
     mesh_url  = _media_url(scene.ply_file)
     depth_url = _media_url(scene.depth_map)
+    ply_url = _sibling_ply_url(scene.ply_file) or mesh_url
 
     # Detect whether stored file is GLB or PLY
     mesh_type = "glb"

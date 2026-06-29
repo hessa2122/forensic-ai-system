@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.contrib import messages
 
-from .models import AuditLog, SystemSetting, UserProfile
+from .models import AuditLog, BackupRecord, Notification, SystemSetting, UserProfile
 
 
 class UserProfileInline(admin.StackedInline):
@@ -75,6 +75,21 @@ class SystemSettingAdmin(admin.ModelAdmin):
     actions = ['run_database_backup']
 
     def run_database_backup(self, request, queryset):
-        call_command('backup_db')
+        call_command('create_forensic_backup', created_by=request.user.pk)
         self.message_user(request, 'Database backup created.', messages.SUCCESS)
     run_database_backup.short_description = 'Run database backup'
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ('created_at', 'user', 'notification_type', 'is_read', 'related_object_type', 'related_object_id')
+    list_filter = ('notification_type', 'is_read', 'created_at')
+    search_fields = ('user__username', 'message', 'related_object_type', 'related_object_id')
+
+
+@admin.register(BackupRecord)
+class BackupRecordAdmin(admin.ModelAdmin):
+    list_display = ('created_at', 'filename', 'database_engine', 'size_bytes', 'status', 'created_by')
+    list_filter = ('status', 'database_engine', 'created_at')
+    search_fields = ('filename', 'checksum_sha256', 'error_message')
+    readonly_fields = ('filename', 'database_engine', 'size_bytes', 'checksum_sha256', 'created_by', 'status', 'error_message', 'created_at')

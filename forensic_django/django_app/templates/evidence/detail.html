@@ -632,10 +632,22 @@
 
       <div class="img-actions">
         <a href="{% url 'reconstruction_view' evidence.id %}" class="btn btn-primary">🌐 View in 3D</a>
+        {% if active_request %}
+        <button class="btn btn-secondary" type="button" disabled>
+          Request {{ active_request.status|title }}
+        </button>
+        {% elif evidence.status != "analyzed" %}
+        <button class="btn btn-secondary" id="btn-request-analysis" type="button">
+          <span class="spinner" id="request-spin"></span>
+          Submit Analysis Request
+        </button>
+        {% endif %}
+        {% if not active_request or request.user.is_staff or evidence.status == "analyzed" %}
         <button class="btn btn-secondary" id="btn-reanalyze" type="button">
           <span class="spinner" id="spin"></span>
-          🔍 Re-analyze
+          {% if evidence.status == "analyzed" %}Re-run Detection{% else %}Run Detection{% endif %}
         </button>
+        {% endif %}
         <a href="{{ evidence.file.url }}" download class="btn btn-secondary">⬇ Download</a>
 
         <form method="post" action="{% url 'delete_evidence' evidence.id %}" class="delete-form" onsubmit="return confirm('Delete this evidence?')">
@@ -724,7 +736,7 @@
             <div class="no-det">
               <div class="icon">🔎</div>
               <strong>No detections yet</strong>
-              Click Re-analyze to run the AI evidence detection pipeline.
+              Submit an analysis request. Staff can also use Run Detection.
             </div>
           {% endif %}
         </div>
@@ -823,6 +835,41 @@ function highlightDetection(index) {
 }
 
 const reanalyzeBtn = document.getElementById('btn-reanalyze');
+const requestBtn = document.getElementById('btn-request-analysis');
+
+if (requestBtn) {
+  requestBtn.addEventListener('click', async function() {
+    const spin = document.getElementById('request-spin');
+    this.disabled = true;
+    spin.style.display = 'inline-block';
+
+    try {
+      const body = new FormData();
+      body.append('request_type', 'detection');
+      const resp = await fetch("{% url 'submit_analysis_request' evidence.id %}", {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body
+      });
+
+      const data = await resp.json();
+
+      if (resp.ok) {
+        alert('Analysis request submitted. An admin must approve and run it.');
+        window.location.reload();
+      } else {
+        alert(data.error || 'Could not submit analysis request.');
+      }
+    } catch (e) {
+      alert('Could not submit analysis request.');
+    } finally {
+      this.disabled = false;
+      spin.style.display = 'none';
+    }
+  });
+}
 
 if (reanalyzeBtn) {
   reanalyzeBtn.addEventListener('click', async function() {
@@ -846,7 +893,7 @@ if (reanalyzeBtn) {
         alert('Re-analysis completed with an unexpected response. Please refresh the page.');
       }
     } catch (e) {
-      alert('Re-analysis failed. Check API keys in .env file.');
+      alert('Detection failed on the server. Please check the model setup and try again.');
     } finally {
       this.disabled = false;
       spin.style.display = 'none';

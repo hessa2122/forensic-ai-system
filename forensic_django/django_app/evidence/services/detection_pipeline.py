@@ -14,14 +14,7 @@ NORMALIZED_LABELS = {
     "blood_stain",
     "fingerprint",
     "gun",
-    "pistol",
-    "handgun",
-    "rifle",
     "knife",
-    "grenade",
-    "shell_casing",
-    "possible_blood_like_region",
-    "possible_fingerprint_like_ridge_region",
 }
 
 LABEL_ALIASES = {
@@ -34,65 +27,44 @@ LABEL_ALIASES = {
     "latent fingerprint": "fingerprint",
     "gun": "gun",
     "firearm": "gun",
-    "pistol": "pistol",
-    "revolver": "pistol",
-    "hand gun": "handgun",
-    "handgun": "handgun",
-    "rifle": "rifle",
+    "pistol": "gun",
+    "revolver": "gun",
+    "hand gun": "gun",
+    "handgun": "gun",
+    "rifle": "gun",
     "knife": "knife",
-    "grenade": "grenade",
-    "bullet casing": "shell_casing",
-    "cartridge casing": "shell_casing",
-    "shell casing": "shell_casing",
-    "shell_casing": "shell_casing",
-    "possible blood-like region": "possible_blood_like_region",
-    "possible_blood_like_region": "possible_blood_like_region",
-    "possible fingerprint-like ridge region": "possible_fingerprint_like_ridge_region",
-    "possible_fingerprint_like_ridge_region": "possible_fingerprint_like_ridge_region",
+    "possible blood-like region": "blood_stain",
+    "possible blood like region": "blood_stain",
+    "possible_blood_like_region": "blood_stain",
+    "possible fingerprint-like ridge region": "fingerprint",
+    "possible fingerprint like ridge region": "fingerprint",
+    "possible_fingerprint_like_ridge_region": "fingerprint",
 }
 
 DISPLAY_LABELS = {
     "blood_stain": "Blood Stain",
     "fingerprint": "Fingerprint",
     "gun": "Gun",
-    "pistol": "Pistol",
-    "handgun": "Handgun",
-    "rifle": "Rifle",
     "knife": "Knife",
-    "grenade": "Grenade",
-    "shell_casing": "Shell Casing",
-    "possible_blood_like_region": "Possible Blood-like Region",
-    "possible_fingerprint_like_ridge_region": "Possible Fingerprint-like Ridge Region",
 }
 
-WEAPON_LABELS = {"gun", "pistol", "handgun", "rifle", "knife", "grenade"}
-CANDIDATE_LABELS = {"possible_blood_like_region", "possible_fingerprint_like_ridge_region"}
+WEAPON_LABELS = {"gun", "knife"}
+CANDIDATE_LABELS = set()
 MODEL_DETECTED_LABELS = (NORMALIZED_LABELS - CANDIDATE_LABELS)
+ALLOWED_OUTPUT_LABELS = MODEL_DETECTED_LABELS | CANDIDATE_LABELS
 
 LABEL_COLORS = {
     "blood_stain": "#dc2626",
     "fingerprint": "#3b82f6",
-    "shell_casing": "#f97316",
-    "possible_blood_like_region": "#f59e0b",
-    "possible_fingerprint_like_ridge_region": "#60a5fa",
     "gun": "#ef4444",
-    "pistol": "#ef4444",
-    "handgun": "#ef4444",
-    "rifle": "#ef4444",
     "knife": "#ef4444",
-    "grenade": "#ef4444",
 }
 
 DEFAULT_THRESHOLDS = {
     "blood_stain": 0.35,
     "fingerprint": 0.40,
-    "shell_casing": 0.30,
     "gun": 0.35,
-    "pistol": 0.35,
-    "handgun": 0.35,
-    "rifle": 0.35,
     "knife": 0.30,
-    "grenade": 0.35,
 }
 
 MODEL_SPECS = {
@@ -173,7 +145,7 @@ def significance_for(label, verification_status="model_detected"):
         return "medium"
     if label in WEAPON_LABELS or label == "blood_stain":
         return "high"
-    if label in {"fingerprint", "shell_casing"}:
+    if label == "fingerprint":
         return "medium"
     return "low"
 
@@ -224,6 +196,71 @@ def bbox_location(bbox, width, height):
     vertical = "top" if cy < 0.33 else "bottom" if cy > 0.66 else "center"
     horizontal = "left" if cx < 0.33 else "right" if cx > 0.66 else "center"
     return f"{vertical}-{horizontal}" if vertical != "center" else horizontal
+
+
+def _bbox_aspect(bbox):
+    x1, y1, x2, y2 = bbox
+    return max((x2 - x1) / max(y2 - y1, 1), (y2 - y1) / max(x2 - x1, 1))
+
+
+def _looks_blade_like(image_path, bbox):
+    """Heuristic guard for YOLO gun/knife confusion on long blade-shaped objects."""
+    try:
+        import cv2
+        import numpy as np
+
+        img = cv2.imread(str(image_path))
+        if img is None:
+            return False
+        x1, y1, x2, y2 = bbox
+        crop = img[y1:y2, x1:x2]
+        if crop.size == 0:
+            return False
+        h, w = crop.shape[:2]
+        if min(h, w) < 20:
+            return False
+
+        gray = cv2.equalizeHist(cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY))
+        edges = cv2.Canny(gray, 45, 130)
+        lines = cv2.HoughLinesP(
+            edges,
+            1,
+            np.pi / 180,
+            threshold=max(20, min(w, h) // 5),
+            minLineLength=max(24, int(max(w, h) * 0.38)),
+            maxLineGap=max(8, min(w, h) // 12),
+        )
+        if lines is None:
+            return False
+
+        long_lines = 0
+        diagonal_lines = 0
+        for line in lines[:, 0, :]:
+            lx1, ly1, lx2, ly2 = line
+            length = float(np.hypot(lx2 - lx1, ly2 - ly1))
+            if length < max(w, h) * 0.38:
+                continue
+            long_lines += 1
+            angle = abs(np.degrees(np.arctan2(ly2 - ly1, lx2 - lx1)))
+            angle = min(angle, 180 - angle)
+            if 15 <= angle <= 75:
+                diagonal_lines += 1
+
+        hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+        sat = hsv[:, :, 1]
+        val = hsv[:, :, 2]
+        blade_pixels = (sat < 75) & (val > 105)
+        blade_ratio = float(np.count_nonzero(blade_pixels)) / max(crop.shape[0] * crop.shape[1], 1)
+
+        return (
+            _bbox_aspect(bbox) >= 1.7
+            and long_lines >= 2
+            and diagonal_lines >= 1
+            and blade_ratio >= 0.08
+        )
+    except Exception:
+        logger.exception("Knife/gun shape correction failed")
+        return False
 
 
 def iou(a, b):
@@ -359,6 +396,10 @@ def _run_yolo_models(image_path):
                     bbox = clamp_bbox(box.xyxy[0].tolist(), width, height)
                     if not bbox:
                         continue
+                    notes = "Confirmed model detection with pixel bounding box."
+                    if label == "gun" and _looks_blade_like(image_path, bbox):
+                        label = "knife"
+                        notes = "Model output corrected from gun to knife by blade-shape analysis."
                     detections.append(
                         Detection(
                             label=label,
@@ -369,7 +410,7 @@ def _run_yolo_models(image_path):
                             model_version=path.name,
                             verification_status="model_detected",
                             location=bbox_location(bbox, width, height),
-                            notes="Confirmed model detection with pixel bounding box.",
+                            notes=notes,
                         ).as_dict()
                     )
             seen_classes |= runnable
@@ -390,31 +431,65 @@ def run_cv_candidates(image_path):
     h, w = img.shape[:2]
     detections = []
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    red1 = cv2.inRange(hsv, np.array([0, 45, 35]), np.array([12, 255, 230]))
-    red2 = cv2.inRange(hsv, np.array([165, 45, 35]), np.array([180, 255, 230]))
-    mask = cv2.morphologyEx(red1 | red2, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    b, g, r = cv2.split(img)
+    red1 = cv2.inRange(hsv, np.array([0, 45, 20]), np.array([12, 255, 190]))
+    red2 = cv2.inRange(hsv, np.array([168, 45, 20]), np.array([180, 255, 190]))
+    red_dominance = (
+        (r.astype(np.int16) - g.astype(np.int16) > 28)
+        & (r.astype(np.int16) - b.astype(np.int16) > 28)
+        & (r > 45)
+        & (g < 95)
+        & (b < 95)
+    ).astype(np.uint8) * 255
+    mask = red1 | red2 | red_dominance
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    for contour in contours[:10]:
+    blood_boxes = []
+    for contour in sorted(contours, key=cv2.contourArea, reverse=True)[:18]:
         area = cv2.contourArea(contour)
-        if area < max(250, 0.00025 * w * h):
+        if area < max(80, 0.00004 * w * h):
             continue
         x, y, bw, bh = cv2.boundingRect(contour)
+        if bw * bh > 0.18 * w * h:
+            continue
         bbox = clamp_bbox([x, y, x + bw, y + bh], w, h)
+        if bbox:
+            blood_boxes.append((area, bbox))
+    if blood_boxes:
+        primary = blood_boxes[0][1]
+        pcx = (primary[0] + primary[2]) / 2
+        pcy = (primary[1] + primary[3]) / 2
+        max_merge_distance = max(w, h) * 0.18
+        top_boxes = []
+        for _area, box in blood_boxes[:8]:
+            cx = (box[0] + box[2]) / 2
+            cy = (box[1] + box[3]) / 2
+            if ((cx - pcx) ** 2 + (cy - pcy) ** 2) ** 0.5 <= max_merge_distance:
+                top_boxes.append(box)
+        if not top_boxes:
+            top_boxes = [primary]
+        x1 = min(box[0] for box in top_boxes)
+        y1 = min(box[1] for box in top_boxes)
+        x2 = max(box[2] for box in top_boxes)
+        y2 = max(box[3] for box in top_boxes)
+        bbox = clamp_bbox([x1, y1, x2, y2], w, h)
+        if bbox and (bbox[2] - bbox[0]) * (bbox[3] - bbox[1]) > 0.12 * w * h:
+            bbox = primary
         if bbox:
             detections.append(
                 Detection(
-                    label="possible_blood_like_region",
-                    confidence=0.42,
+                    label="blood_stain",
+                    confidence=0.46 if len(top_boxes) > 1 else 0.42,
                     bbox=bbox,
                     source="local_cv",
-                    model_name="opencv_color_candidate",
+                    model_name="opencv_blood_candidate",
                     model_version="not_a_trained_detector",
                     verification_status="candidate_unverified",
                     location=bbox_location(bbox, w, h),
-                    notes="Unverified candidate only; not counted as confirmed blood evidence.",
+                    notes="Unverified dark-red stain candidate; analyst must confirm blood evidence.",
                 ).as_dict()
             )
-            break
 
     gray = cv2.equalizeHist(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
     edges = cv2.Canny(gray, 60, 140)
@@ -436,7 +511,7 @@ def run_cv_candidates(image_path):
         bbox = best[1]
         detections.append(
             Detection(
-                label="possible_fingerprint_like_ridge_region",
+                label="fingerprint",
                 confidence=0.38,
                 bbox=bbox,
                 source="local_cv",
@@ -444,7 +519,7 @@ def run_cv_candidates(image_path):
                 model_version="not_a_trained_detector",
                 verification_status="candidate_unverified",
                 location=bbox_location(bbox, w, h),
-                notes="Unverified candidate only; not counted as confirmed fingerprint evidence.",
+                notes="Unverified visual candidate; analyst must confirm fingerprint evidence.",
             ).as_dict()
         )
     return detections
@@ -476,7 +551,10 @@ def analyze_image(image_path):
     started = time.perf_counter()
     yolo_detections, source_models = _run_yolo_models(image_path)
     cv_detections = run_cv_candidates(image_path)
-    detections = dedupe_detections(yolo_detections + cv_detections)
+    detections = [
+        det for det in dedupe_detections(yolo_detections + cv_detections)
+        if det.get("label") in ALLOWED_OUTPUT_LABELS
+    ]
     detections.sort(
         key=lambda det: (
             det.get("verification_status") != "model_detected",
@@ -509,6 +587,6 @@ def analyze_image(image_path):
         "scene_type": "unknown",
         "sources_used": sources_used,
         "source_models": source_models,
-        "model_health": get_model_health(load_classes=False),
+        "model_health": get_model_health(load_classes=True),
         "analysis_duration_ms": int((time.perf_counter() - started) * 1000),
     }

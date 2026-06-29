@@ -22,10 +22,14 @@ class Evidence(models.Model):
                                           related_name="evidence_items", null=True, blank=True)
     uploaded_by       = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     file              = models.ImageField(upload_to="evidence/%Y/%m/%d/", blank=True, default="")
+    analysis_image    = models.ImageField(upload_to="evidence/analysis/%Y/%m/%d/", blank=True, default="")
+    evidence_type     = models.CharField(max_length=30, blank=True, default="image")
     original_filename = models.CharField(max_length=255, default="")
+    mime_type         = models.CharField(max_length=120, blank=True, default="")
     file_size         = models.BigIntegerField(default=0)
     status            = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
-    analyzed_at       = models.DateTimeField(default=timezone.now)   # keep original field name
+    uploaded_at       = models.DateTimeField(auto_now_add=True, null=True)
+    analyzed_at       = models.DateTimeField(null=True, blank=True)   # keep original field name
     notes             = models.TextField(blank=True, default="")
     analysis_error    = models.TextField(blank=True, default="")
     analysis_started_at = models.DateTimeField(null=True, blank=True)
@@ -35,7 +39,7 @@ class Evidence(models.Model):
     model_versions    = models.JSONField(blank=True, default=dict)
 
     class Meta:
-        ordering = ["-analyzed_at"]
+        ordering = ["-uploaded_at", "-id"]
 
     def __str__(self):
         return f"{self.original_filename}"
@@ -43,17 +47,24 @@ class Evidence(models.Model):
     # Alias so templates/views using .created_at still work
     @property
     def created_at(self):
-        return self.analyzed_at
+        return self.uploaded_at
 
 
 class DetectionResult(models.Model):
     evidence        = models.OneToOneField(Evidence, on_delete=models.CASCADE)
+    analysis_request = models.OneToOneField(
+        "AnalysisRequest", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="detection_result",
+    )
     detections_json = models.TextField(default="[]")
     detections      = models.JSONField(blank=True, default=list)
     scene_summary   = models.TextField(blank=True, default="")
     evidence_count  = models.IntegerField(default=0)
     confirmed_count = models.IntegerField(default=0)
     candidate_count = models.IntegerField(default=0)
+    weapon_count    = models.IntegerField(default=0)
+    blood_count     = models.IntegerField(default=0)
+    fingerprint_count = models.IntegerField(default=0)
     scene_type      = models.CharField(max_length=50, default="unknown")
     sources_used    = models.CharField(max_length=100, blank=True, default="")
     source_models   = models.JSONField(blank=True, default=list)
@@ -71,19 +82,38 @@ class AnalysisRequest(models.Model):
         ('pending', 'Pending'),
         ('approved', 'Approved'),
         ('rejected', 'Rejected'),
+        ('processing', 'Processing'),
         ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    REQUEST_TYPES = [
+        ('detection', 'AI Detection'),
+        ('reconstruction', '3D Reconstruction'),
     ]
 
     evidence = models.ForeignKey(Evidence, on_delete=models.CASCADE, related_name='analysis_requests')
     requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='analysis_requests')
+    request_type = models.CharField(max_length=30, choices=REQUEST_TYPES, default='detection')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     requested_at = models.DateTimeField(auto_now_add=True)
     reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                     related_name='reviewed_analysis_requests')
     reviewed_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True, default='')
+    processing_started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True, default='')
 
     class Meta:
         ordering = ['-requested_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['evidence', 'request_type'],
+                condition=models.Q(status__in=['pending', 'approved', 'processing']),
+                name='unique_active_analysis_request_per_evidence_type',
+            ),
+        ]
 
     def __str__(self):
         return f'Analysis request for {self.evidence}'

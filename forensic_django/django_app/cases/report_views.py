@@ -7,8 +7,12 @@ AI detection findings, threat levels, and audit logging.
 from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404
+from django.core.files.base import ContentFile
+from django.db.models import Q
 from datetime import datetime
 from html import escape
+from io import BytesIO
+import hashlib
 import json
 import os
 
@@ -26,9 +30,10 @@ try:
 except ImportError:
     REPORTLAB_OK = False
 
-from cases.models import Case
+from cases.models import Case, Report
 from evidence.models import Evidence
 from accounts.models import log_action
+from accounts.services import create_notification
 
 
 # -----------------------------------------------------------------------------
@@ -177,7 +182,14 @@ def _on_page(canvas, doc):
 
 @login_required
 def download_case_report(request, case_id):
-    case = get_object_or_404(Case, id=case_id)
+    if request.user.is_staff:
+        case = get_object_or_404(Case, id=case_id)
+    else:
+        case = get_object_or_404(
+            Case,
+            Q(created_by=request.user) | Q(assigned_to=request.user),
+            id=case_id,
+        )
 
     if not REPORTLAB_OK:
         return HttpResponse(
@@ -189,13 +201,10 @@ def download_case_report(request, case_id):
     evidence_qs = Evidence.objects.filter(case=case).order_by("-analyzed_at")
     evlist = list(evidence_qs)
 
-    response = HttpResponse(content_type="application/pdf")
-    response["Content-Disposition"] = (
-        f"attachment; filename=forensic_report_{case.case_number}.pdf"
-    )
+    buffer = BytesIO()
 
     doc = SimpleDocTemplate(
-        response,
+        buffer,
         pagesize=A4,
         rightMargin=1.55 * cm,
         leftMargin=1.55 * cm,
@@ -547,12 +556,27 @@ def download_case_report(request, case_id):
     story.append(Paragraph("CONFIDENTIAL - FOR AUTHORIZED PERSONNEL ONLY", muted))
 
     doc.build(story, onFirstPage=_on_page, onLaterPages=_on_page)
+    pdf_bytes = buffer.getvalue()
+    checksum = hashlib.sha256(pdf_bytes).hexdigest()
+    filename = f"forensic_report_{case.case_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    report = Report.objects.create(
+        case=case,
+        report_title=f"Forensic Report {case.case_number}",
+        generated_by=request.user,
+        checksum_sha256=checksum,
+    )
+    report.file.save(filename, ContentFile(pdf_bytes), save=True)
+    create_notification(request.user, f"Report ready for case {case.case_number}.", 'report', report)
 
     log_action(
         request.user,
-        "report_download",
+        "report_generated",
         target=f"Case #{case.case_number}",
         request=request,
     )
+    log_action(request.user, "report_download", target=f"Case #{case.case_number}", request=request)
 
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f"attachment; filename={filename}"
+    response["X-Report-SHA256"] = checksum
     return response

@@ -15,6 +15,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
+from django.db import IntegrityError
 from django.db.models import Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -23,10 +24,11 @@ from django.utils import timezone
 from django.utils.text import get_valid_filename
 
 from .ai_detector import analyze_image
-from .models import DetectionResult, Evidence
+from .models import AnalysisRequest, DetectionResult, Evidence
 from .model_registry import candidate_count, confirmed_count, count_label, display_label, weapons_found
 from .services.detection_pipeline import WEAPON_LABELS
 from accounts.models import log_action
+from accounts.services import create_notification
 
 logger = logging.getLogger(__name__)
 ANALYSIS_COPY_SUFFIXES = {'.jfif', '.jpe'}
@@ -218,7 +220,7 @@ def _risk_color(risk):
     }.get(risk, '#6b7280')
 
 
-def _save_analysis(evidence):
+def _save_analysis(evidence, analysis_request=None):
     started = time.perf_counter()
     evidence.status = 'processing'
     evidence.analysis_error = ''
@@ -241,12 +243,16 @@ def _save_analysis(evidence):
     DetectionResult.objects.update_or_create(
         evidence=evidence,
         defaults={
+            'analysis_request': analysis_request,
             'detections_json': json.dumps(detections),
             'detections':      detections,
             'scene_summary':   analysis.get('scene_summary', ''),
             'evidence_count':  analysis.get('confirmed_count', confirmed_count(detections)),
             'confirmed_count': confirmed_count(detections),
             'candidate_count': candidate_count(detections),
+            'weapon_count': count_label(detections, WEAPON_LABELS),
+            'blood_count': count_label(detections, {'blood_stain'}),
+            'fingerprint_count': count_label(detections, {'fingerprint'}),
             'scene_type':      analysis.get('scene_type', 'unknown'),
             'sources_used':    ','.join(analysis.get('sources_used', [])),
             'source_models':   analysis.get('source_models', []),
@@ -256,6 +262,7 @@ def _save_analysis(evidence):
         },
     )
     evidence.status = 'analyzed'
+    evidence.analyzed_at = timezone.now()
     evidence.analysis_completed_at = timezone.now()
     evidence.model_versions = {
         item.get('model_name'): item.get('model_version')
@@ -265,7 +272,7 @@ def _save_analysis(evidence):
     evidence.analysis_error = ''
     evidence.save(update_fields=[
         'status', 'analysis_completed_at', 'original_sha256',
-        'analysis_image_sha256', 'model_versions', 'analysis_error',
+        'analysis_image_sha256', 'model_versions', 'analysis_error', 'analyzed_at',
     ])
     return analysis
 
@@ -284,6 +291,9 @@ def _mark_analysis_failed(evidence, message):
             'evidence_count': 0,
             'confirmed_count': 0,
             'candidate_count': 0,
+            'weapon_count': 0,
+            'blood_count': 0,
+            'fingerprint_count': 0,
             'sources_used': '',
             'source_models': [],
             'error_state': message,
@@ -317,24 +327,30 @@ def upload_evidence(request, case_id):
                         case=case,
                         uploaded_by=request.user,
                         file=file,
+                        evidence_type='image',
                         original_filename=safe_name,
+                        mime_type=getattr(file, 'content_type', '') or '',
                         file_size=file.size,
                         notes=request.POST.get('notes', ''),
                     )
-                try:
-                    _save_analysis(evidence)
-                    upload_results.append({'filename': safe_name, 'status': 'uploaded'})
-                    log_action(request.user, 'evidence_upload',
-                               target=f'Case #{case.case_number} / {safe_name}')
-                except Exception:
-                    logger.exception('Evidence detection failed for evidence_id=%s', evidence.id)
-                    _mark_analysis_failed(evidence, 'Analysis failed. You can retry reanalysis from the evidence page.')
-                    upload_results.append({'filename': safe_name, 'status': 'failed', 'error': evidence.analysis_error})
+                evidence.original_sha256 = _sha256_file(evidence.file.path)
+                evidence.save(update_fields=['original_sha256'])
+                if getattr(settings, 'AUTO_ANALYZE_ON_UPLOAD', False):
+                    try:
+                        _save_analysis(evidence)
+                    except Exception:
+                        logger.exception('Evidence detection failed for evidence_id=%s', evidence.id)
+                        _mark_analysis_failed(evidence, 'Analysis failed. Submit or retry an approved analysis request.')
+                        upload_results.append({'filename': safe_name, 'status': 'failed', 'error': evidence.analysis_error})
+                        continue
+                upload_results.append({'filename': safe_name, 'status': 'uploaded'})
+                log_action(request.user, 'evidence_upload',
+                           target=f'Case #{case.case_number} / {safe_name}')
             except ValidationError as exc:
                 upload_results.append({'filename': getattr(file, 'name', 'unknown'), 'status': 'rejected', 'error': '; '.join(exc.messages)})
         for item in upload_results:
             if item['status'] == 'uploaded':
-                messages.success(request, f"{item['filename']} uploaded and analyzed.")
+                messages.success(request, f"{item['filename']} uploaded and pending analysis request.")
             else:
                 messages.error(request, f"{item['filename']}: {item.get('error', 'Upload failed.')}")
         return redirect('evidence_list', case_id=case_id)
@@ -373,40 +389,71 @@ def api_upload_evidence(request):
         case=case,
         uploaded_by=request.user,
         file=image,
+        evidence_type='image',
         original_filename=safe_name,
+        mime_type=getattr(image, 'content_type', '') or '',
         file_size=image.size,
         notes=request.POST.get('notes', ''),
     )
+    evidence.original_sha256 = _sha256_file(evidence.file.path)
+    evidence.save(update_fields=['original_sha256'])
 
-    try:
-        analysis = _save_analysis(evidence)
-    except Exception as exc:
-        logger.exception('Evidence detection failed for evidence_id=%s', evidence.id)
-        _mark_analysis_failed(evidence, 'Detection failed on the server. You can retry reanalysis.')
-        return JsonResponse({
-            'error':       'Detection failed on the server.',
-            'evidence_id': evidence.id,
-        }, status=500)
+    analysis = None
+    direct_run_requested = request.POST.get('run_analysis') == '1'
+    if getattr(settings, 'AUTO_ANALYZE_ON_UPLOAD', False) or direct_run_requested:
+        analysis_request = None
+        if direct_run_requested:
+            analysis_request = AnalysisRequest.objects.create(
+                evidence=evidence,
+                requested_by=request.user,
+                request_type='detection',
+                status='approved',
+                reviewed_by=request.user if request.user.is_staff else None,
+                reviewed_at=timezone.now(),
+            )
+        try:
+            if analysis_request:
+                analysis_request.status = 'processing'
+                analysis_request.processing_started_at = timezone.now()
+                analysis_request.save(update_fields=['status', 'processing_started_at'])
+            analysis = _save_analysis(evidence, analysis_request=analysis_request)
+            if analysis_request:
+                analysis_request.status = 'completed'
+                analysis_request.completed_at = timezone.now()
+                analysis_request.save(update_fields=['status', 'completed_at'])
+        except Exception:
+            logger.exception('Evidence detection failed for evidence_id=%s', evidence.id)
+            _mark_analysis_failed(evidence, 'Detection failed on the server. Submit or retry an approved request.')
+            if analysis_request:
+                analysis_request.status = 'failed'
+                analysis_request.error_message = evidence.analysis_error
+                analysis_request.completed_at = timezone.now()
+                analysis_request.save(update_fields=['status', 'error_message', 'completed_at'])
+            return JsonResponse({
+                'error':       'Detection failed on the server.',
+                'evidence_id': evidence.id,
+            }, status=500)
 
     log_action(request.user, 'evidence_upload',
                target=f'Case #{case.case_number} / {safe_name}')
 
-    dashboard_detections = [_dashboard_detection(d) for d in analysis.get('detections', [])]
+    dashboard_detections = [_dashboard_detection(d) for d in (analysis or {}).get('detections', [])]
     risk = _overall_risk(dashboard_detections)
     return JsonResponse({
         'id':              evidence.id,
         'evidence_id':     evidence.id,
         'filename':        evidence.original_filename,
         'image_url':       evidence.file.url,
-        'annotated_url':   settings.MEDIA_URL + analysis.get('annotated_url', '') if analysis.get('annotated_url') else evidence.file.url,
+        'annotated_url':   settings.MEDIA_URL + analysis.get('annotated_url', '') if analysis and analysis.get('annotated_url') else '',
         'detections':      dashboard_detections,
-        'raw_detections':  analysis.get('detections', []),
+        'raw_detections':  (analysis or {}).get('detections', []),
         'total_objects':   len(dashboard_detections),
-        'weapons_found':   weapons_found(analysis.get('detections', [])),
+        'weapons_found':   weapons_found((analysis or {}).get('detections', [])),
         'overall_risk':    risk,
         'risk_color':      _risk_color(risk),
-        'scene_summary':   analysis.get('scene_summary', ''),
-        'sources_used':    analysis.get('sources_used', []),
+        'status':          evidence.status,
+        'scene_summary':   (analysis or {}).get('scene_summary', ''),
+        'sources_used':    (analysis or {}).get('sources_used', []),
     })
 
 
@@ -455,6 +502,11 @@ def evidence_detail(request, evidence_id):
         annotated_url = ''
     confirmed = [d for d in detections if d.get('verification_status') == 'model_detected']
     candidates = [d for d in detections if d.get('verification_status') == 'candidate_unverified']
+    active_request = evidence.analysis_requests.filter(
+        request_type='detection',
+        status__in=['pending', 'approved', 'processing'],
+    ).order_by('-requested_at').first()
+    latest_request = evidence.analysis_requests.filter(request_type='detection').order_by('-requested_at').first()
     if annotated_url and not annotated_url.startswith(('http://', 'https://', settings.MEDIA_URL)):
         annotated_url = settings.MEDIA_URL + annotated_url
     return render(request, 'evidence/detail.html', {
@@ -471,6 +523,8 @@ def evidence_detail(request, evidence_id):
         'blood_count': count_label(detections, {'blood_stain'}),
         'fingerprint_count': count_label(detections, {'fingerprint'}),
         'weapon_count': count_label(detections, WEAPON_LABELS),
+        'active_request': active_request,
+        'latest_request': latest_request,
     })
 
 
@@ -484,7 +538,7 @@ def reanalyze_evidence(request, evidence_id):
     else:
         evidence = get_object_or_404(
             Evidence,
-            Q(case__created_by=request.user) | Q(case__assigned_to=request.user),
+            Q(case__created_by=request.user) | Q(case__assigned_to=request.user) | Q(uploaded_by=request.user),
             id=evidence_id,
         )
     try:
@@ -502,6 +556,125 @@ def reanalyze_evidence(request, evidence_id):
         'evidence_count': analysis.get('evidence_count', 0),
         'sources_used':   analysis.get('sources_used', []),
     })
+
+
+@login_required
+@require_http_methods(['POST'])
+def submit_analysis_request(request, evidence_id):
+    if not _is_approved(request.user):
+        return JsonResponse({'error': 'Account pending approval'}, status=403)
+    if request.user.is_staff:
+        evidence = get_object_or_404(Evidence, id=evidence_id)
+    else:
+        evidence = get_object_or_404(
+            Evidence,
+            Q(case__created_by=request.user) | Q(case__assigned_to=request.user) | Q(uploaded_by=request.user),
+            id=evidence_id,
+        )
+    request_type = request.POST.get('request_type', 'detection')
+    if request_type not in {'detection', 'reconstruction'}:
+        return JsonResponse({'error': 'Unsupported request type'}, status=400)
+    active_request = AnalysisRequest.objects.filter(
+        evidence=evidence,
+        request_type=request_type,
+        status__in=['pending', 'approved', 'processing'],
+    ).first()
+    if active_request:
+        return JsonResponse({'error': 'An active request already exists.', 'request_id': active_request.id}, status=409)
+    try:
+        analysis_request = AnalysisRequest.objects.create(
+            evidence=evidence,
+            request_type=request_type,
+            requested_by=request.user,
+            status='pending',
+        )
+    except IntegrityError:
+        active_request = AnalysisRequest.objects.filter(
+            evidence=evidence,
+            request_type=request_type,
+            status__in=['pending', 'approved', 'processing'],
+        ).first()
+        return JsonResponse({
+            'error': 'An active request already exists.',
+            'request_id': active_request.id if active_request else None,
+        }, status=409)
+    log_action(request.user, 'request_submitted', target=f'Evidence #{evidence.id}')
+    return JsonResponse({'status': analysis_request.status, 'request_id': analysis_request.id})
+
+
+def _run_approved_request(analysis_request, actor=None):
+    analysis_request.status = 'processing'
+    analysis_request.processing_started_at = timezone.now()
+    analysis_request.error_message = ''
+    analysis_request.save(update_fields=['status', 'processing_started_at', 'error_message'])
+    try:
+        if analysis_request.request_type != 'detection':
+            raise ValueError('Only detection requests can be run by this endpoint.')
+        analysis = _save_analysis(analysis_request.evidence, analysis_request=analysis_request)
+        analysis_request.status = 'completed'
+        analysis_request.completed_at = timezone.now()
+        analysis_request.save(update_fields=['status', 'completed_at'])
+        create_notification(
+            analysis_request.requested_by,
+            f'Analysis completed for {analysis_request.evidence.original_filename}.',
+            'analysis',
+            analysis_request,
+        )
+        if actor:
+            log_action(actor, 'analysis_run', target=f'AnalysisRequest #{analysis_request.id}')
+        return analysis
+    except Exception as exc:
+        logger.exception('Approved analysis request failed request_id=%s', analysis_request.id)
+        _mark_analysis_failed(analysis_request.evidence, str(exc))
+        analysis_request.status = 'failed'
+        analysis_request.error_message = str(exc)
+        analysis_request.completed_at = timezone.now()
+        analysis_request.save(update_fields=['status', 'error_message', 'completed_at'])
+        create_notification(
+            analysis_request.requested_by,
+            f'Analysis failed for {analysis_request.evidence.original_filename}.',
+            'analysis',
+            analysis_request,
+        )
+        raise
+
+
+@login_required
+@require_http_methods(['POST'])
+def approve_analysis_request(request, request_id):
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'Admin access required'}, status=403)
+    analysis_request = get_object_or_404(AnalysisRequest, id=request_id)
+    analysis_request.status = 'approved'
+    analysis_request.reviewed_by = request.user
+    analysis_request.reviewed_at = timezone.now()
+    analysis_request.rejection_reason = ''
+    analysis_request.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'rejection_reason'])
+    create_notification(analysis_request.requested_by, 'Your analysis request was approved.', 'analysis', analysis_request)
+    log_action(request.user, 'request_approved', target=f'AnalysisRequest #{analysis_request.id}')
+    if request.POST.get('run') == '1':
+        try:
+            analysis = _run_approved_request(analysis_request, actor=request.user)
+            return JsonResponse({'status': 'completed', 'detections': analysis.get('detections', [])})
+        except Exception as exc:
+            return JsonResponse({'status': 'failed', 'error': str(exc)}, status=500)
+    return JsonResponse({'status': analysis_request.status, 'request_id': analysis_request.id})
+
+
+@login_required
+@require_http_methods(['POST'])
+def reject_analysis_request(request, request_id):
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'Admin access required'}, status=403)
+    analysis_request = get_object_or_404(AnalysisRequest, id=request_id)
+    analysis_request.status = 'rejected'
+    analysis_request.reviewed_by = request.user
+    analysis_request.reviewed_at = timezone.now()
+    analysis_request.rejection_reason = request.POST.get('rejection_reason', '').strip()
+    analysis_request.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'rejection_reason'])
+    create_notification(analysis_request.requested_by, 'Your analysis request was rejected.', 'analysis', analysis_request)
+    log_action(request.user, 'request_rejected', target=f'AnalysisRequest #{analysis_request.id}', details=analysis_request.rejection_reason)
+    return JsonResponse({'status': analysis_request.status, 'reason': analysis_request.rejection_reason})
 
 
 @login_required

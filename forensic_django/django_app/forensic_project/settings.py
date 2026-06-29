@@ -110,12 +110,25 @@ WSGI_APPLICATION = 'forensic_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+DB_ENGINE = os.getenv('DB_ENGINE', '').strip().lower()
+if DB_ENGINE == 'postgresql':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME', ''),
+            'USER': os.getenv('DB_USER', ''),
+            'PASSWORD': os.getenv('DB_PASSWORD', ''),
+            'HOST': os.getenv('DB_HOST', 'localhost'),
+            'PORT': os.getenv('DB_PORT', '5432'),
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.getenv('DB_NAME') or Path(BASE_DIR) / 'db.sqlite3',
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
@@ -180,7 +193,8 @@ EVIDENCE_ALLOWED_IMAGE_FORMATS = tuple(
 EVIDENCE_MIN_IMAGE_WIDTH = int(os.getenv('EVIDENCE_MIN_IMAGE_WIDTH', 16))
 EVIDENCE_MIN_IMAGE_HEIGHT = int(os.getenv('EVIDENCE_MIN_IMAGE_HEIGHT', 16))
 EVIDENCE_MAX_IMAGE_PIXELS = int(os.getenv('EVIDENCE_MAX_IMAGE_PIXELS', 40_000_000))
-ENABLE_CV_CANDIDATES = env_bool('ENABLE_CV_CANDIDATES', False)
+ENABLE_CV_CANDIDATES = env_bool('ENABLE_CV_CANDIDATES', True)
+AUTO_ANALYZE_ON_UPLOAD = env_bool('AUTO_ANALYZE_ON_UPLOAD', False)
 ENABLE_GEMINI_BACKUP = env_bool('ENABLE_GEMINI_BACKUP', False)
 ENABLE_ROBOFLOW_DETECTION = env_bool('ENABLE_ROBOFLOW_DETECTION', False)
 ENABLE_YOLO_WORLD_FALLBACK = env_bool('ENABLE_YOLO_WORLD_FALLBACK', False)
@@ -195,13 +209,8 @@ FORENSIC_YOLO_IMAGE_SIZE = int(os.getenv('FORENSIC_YOLO_IMAGE_SIZE', '768'))
 FORENSIC_CLASS_THRESHOLDS = {
     'blood_stain': float(os.getenv('FORENSIC_CONF_BLOOD_STAIN', '0.35')),
     'fingerprint': float(os.getenv('FORENSIC_CONF_FINGERPRINT', '0.40')),
-    'shell_casing': float(os.getenv('FORENSIC_CONF_SHELL_CASING', '0.30')),
     'gun': float(os.getenv('FORENSIC_CONF_GUN', '0.35')),
-    'pistol': float(os.getenv('FORENSIC_CONF_PISTOL', '0.35')),
-    'handgun': float(os.getenv('FORENSIC_CONF_HANDGUN', '0.35')),
-    'rifle': float(os.getenv('FORENSIC_CONF_RIFLE', '0.35')),
     'knife': float(os.getenv('FORENSIC_CONF_KNIFE', '0.30')),
-    'grenade': float(os.getenv('FORENSIC_CONF_GRENADE', '0.35')),
 }
 
 

@@ -78,3 +78,21 @@ class SystemService(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class Report(models.Model):
+    case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name='reports')
+    evidence = models.ForeignKey('evidence.Evidence', on_delete=models.SET_NULL, null=True, blank=True, related_name='reports')
+    detection_result = models.ForeignKey('evidence.DetectionResult', on_delete=models.SET_NULL, null=True, blank=True, related_name='reports')
+    reconstruction = models.ForeignKey('reconstruction.SceneReconstruction', on_delete=models.SET_NULL, null=True, blank=True, related_name='reports')
+    report_title = models.CharField(max_length=255)
+    generated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='generated_reports')
+    file = models.FileField(upload_to='reports/%Y/%m/', blank=True, default='')
+    checksum_sha256 = models.CharField(max_length=64, blank=True, default='')
+    generated_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-generated_at']
+
+    def __str__(self):
+        return self.report_title

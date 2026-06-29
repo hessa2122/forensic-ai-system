@@ -889,18 +889,22 @@ function setupLoadedMesh(group, fmt) {
   group.position.sub(centre.multiplyScalar(scale));
   group.updateMatrixWorld(true);
 
-  // Ensure all meshes have good materials
+  // Preserve image-derived vertex colors/textures so the scene stays readable.
   group.traverse((node) => {
     if (node.isMesh) {
       node.castShadow = true;
       node.receiveShadow = true;
 
       node.geometry.computeVertexNormals();
+      const hasVertexColors = !!node.geometry.attributes.color;
+      const oldMaterial = Array.isArray(node.material) ? node.material[0] : node.material;
       node.material = new THREE.MeshStandardMaterial({
-        color: 0x9db4c8,
-        emissive: 0x101820,
-        roughness: 0.65,
-        metalness: 0.04,
+        color: hasVertexColors || oldMaterial?.map ? 0xffffff : 0x9db4c8,
+        map: oldMaterial?.map || null,
+        vertexColors: hasVertexColors,
+        emissive: 0x05070a,
+        roughness: 0.72,
+        metalness: 0.02,
         side: THREE.DoubleSide,
       });
     }
@@ -947,8 +951,8 @@ function setupLoadedMesh(group, fmt) {
   const distance = radius / Math.sin(THREE.MathUtils.degToRad(camera.fov * 0.5));
   camera.position.set(
     fittedSphere.center.x,
-    fittedSphere.center.y + radius * 0.35,
-    fittedSphere.center.z + distance * 1.15
+    fittedSphere.center.y + radius * 0.08,
+    fittedSphere.center.z + distance * 1.02
   );
   camera.near = Math.max(distance / 100, 0.01);
   camera.far = Math.max(distance * 100, 200);

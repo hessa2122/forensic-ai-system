@@ -1366,8 +1366,7 @@ const displayDetectionLabel = d => d.display_label || String(d.label || d.class_
     .replace(/_/g, ' ')
     .replace(/\b\w/g, c => c.toUpperCase());
 const detectionIcons = {
-  gun:'🔫', pistol:'🔫', rifle:'🔫', knife:'🔪', grenade:'⚠️',
-  blood:'🩸', fingerprint:'☝️', shell_casing:'●', footprint:'👣',
+  gun:'🔫', knife:'🔪', blood_stain:'🩸', fingerprint:'☝️',
   rope:'〰️', drugs:'◆', broken_glass:'◇'
 };
 
@@ -1609,6 +1608,7 @@ async function analyzeEvidence() {
   fd.append('image',   selectedFile);
   fd.append('case_id', caseId);
   fd.append('notes',   document.getElementById('evidence-notes').value);
+  fd.append('run_analysis', '1');
 
   try {
     const r = await fetch('/api/evidence/upload/', {

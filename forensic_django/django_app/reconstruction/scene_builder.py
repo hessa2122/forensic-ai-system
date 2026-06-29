@@ -340,6 +340,38 @@ def _save_depth_map(depth: np.ndarray, out_path: str):
     cv2.imwrite(out_path, coloured)
 
 
+def _write_ascii_ply(vertices: np.ndarray, faces: np.ndarray, rgb: np.ndarray, out_path: str) -> bool:
+    """Write a coloured triangle mesh as ASCII PLY without optional mesh libraries."""
+    try:
+        vertices = np.asarray(vertices, dtype=np.float32)
+        faces = np.asarray(faces, dtype=np.int64)
+        rgb = np.asarray(rgb, dtype=np.uint8)
+        with open(out_path, "w", encoding="ascii", newline="\n") as fh:
+            fh.write("ply\n")
+            fh.write("format ascii 1.0\n")
+            fh.write(f"element vertex {len(vertices)}\n")
+            fh.write("property float x\n")
+            fh.write("property float y\n")
+            fh.write("property float z\n")
+            fh.write("property uchar red\n")
+            fh.write("property uchar green\n")
+            fh.write("property uchar blue\n")
+            fh.write(f"element face {len(faces)}\n")
+            fh.write("property list uchar int vertex_indices\n")
+            fh.write("end_header\n")
+            for vertex, colour in zip(vertices, rgb):
+                fh.write(
+                    f"{vertex[0]:.6f} {vertex[1]:.6f} {vertex[2]:.6f} "
+                    f"{int(colour[0])} {int(colour[1])} {int(colour[2])}\n"
+                )
+            for face in faces:
+                fh.write(f"3 {int(face[0])} {int(face[1])} {int(face[2])}\n")
+        return Path(out_path).exists() and Path(out_path).stat().st_size > 0
+    except Exception as exc:
+        log.warning("Plain PLY export failed: %s", exc)
+        return False
+
+
 def _mesh_to_glb(mesh, o3d, out_path: str) -> bool:
     """Write mesh as GLB. Returns True on success."""
     trimesh_mod = _import_trimesh()
@@ -384,11 +416,10 @@ def _mesh_to_ply(mesh, o3d, out_path: str) -> bool:
 def _build_trimesh_surface_scene(image_path: str, glb_out: str, ply_out: str, depth_out: str) -> dict:
     """Fallback solid mesh path that avoids Open3D entirely."""
     trimesh_mod = _import_trimesh()
-    if trimesh_mod is None:
-        raise RuntimeError("trimesh is not installed. Run: pip install trimesh")
 
     img = _load_image(image_path)
-    surface_dim = int(os.environ.get("RECON_SURFACE_DIM", "420"))
+    surface_dim = int(os.environ.get("RECON_SURFACE_DIM", "720"))
+    depth_scale = float(os.environ.get("RECON_DEPTH_SCALE", "1.5"))
     h, w = img.shape[:2]
     if max(h, w) > surface_dim:
         scale = surface_dim / max(h, w)
@@ -404,7 +435,7 @@ def _build_trimesh_surface_scene(image_path: str, glb_out: str, ply_out: str, de
     x = np.linspace(-4.8, 4.8, w, dtype=np.float32)
     y = np.linspace(3.2, -3.2, h, dtype=np.float32)
     xx, yy = np.meshgrid(x, y)
-    zz = (depth.astype(np.float32) - 0.5) * 3.2
+    zz = (depth.astype(np.float32) - 0.5) * depth_scale
     vertices = np.column_stack([xx.reshape(-1), yy.reshape(-1), zz.reshape(-1)])
 
     grid = np.arange(h * w, dtype=np.int64).reshape(h, w)
@@ -422,16 +453,25 @@ def _build_trimesh_surface_scene(image_path: str, glb_out: str, ply_out: str, de
 
     rgba = np.ones((len(vertices), 4), dtype=np.uint8) * 255
     rgba[:, :3] = img.reshape(-1, 3)
-    mesh = trimesh_mod.Trimesh(vertices=vertices, faces=faces, process=False)
-    mesh.visual = trimesh_mod.visual.ColorVisuals(vertex_colors=rgba, mesh=mesh)
-    mesh.export(glb_out)
+    glb_ok = False
+    if trimesh_mod is not None:
+        mesh = trimesh_mod.Trimesh(vertices=vertices, faces=faces, process=False)
+        mesh.visual = trimesh_mod.visual.ColorVisuals(vertex_colors=rgba, mesh=mesh)
+        try:
+            mesh.export(glb_out)
+            glb_ok = Path(glb_out).exists()
+        except Exception as exc:
+            log.warning("Fallback GLB export failed: %s", exc)
 
-    ply_ok = False
-    try:
-        mesh.export(ply_out)
-        ply_ok = True
-    except Exception as exc:
-        log.warning("Fallback PLY export failed: %s", exc)
+        ply_ok = False
+        try:
+            mesh.export(ply_out)
+            ply_ok = True
+        except Exception as exc:
+            log.warning("Fallback PLY export failed: %s", exc)
+    else:
+        log.warning("trimesh not installed; exporting PLY-only reconstruction.")
+        ply_ok = _write_ascii_ply(vertices, faces, rgba[:, :3], ply_out)
 
     clusters = [{
         "id": 0,
@@ -446,7 +486,7 @@ def _build_trimesh_surface_scene(image_path: str, glb_out: str, ply_out: str, de
         "total_points": int(len(vertices)),
         "num_clusters": len(clusters),
         "clusters": clusters,
-        "glb_ok": Path(glb_out).exists(),
+        "glb_ok": glb_ok,
         "ply_ok": ply_ok,
     }
 

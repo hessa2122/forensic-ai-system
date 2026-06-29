@@ -116,3 +116,6 @@ __pycache__/
 .venv_forensic/
 */.venv_forensic/
 forensic_django/django_app/.venv_forensic/
+
+# Generated database backups
+forensic_django/django_app/backups/

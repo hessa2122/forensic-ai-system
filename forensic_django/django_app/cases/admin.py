@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Case, SystemService
+from .models import Case, Report, SystemService
 
 
 @admin.register(Case)
@@ -18,3 +18,11 @@ class SystemServiceAdmin(admin.ModelAdmin):
     search_fields = ('name', 'description')
     list_editable = ('is_enabled',)
     readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(Report)
+class ReportAdmin(admin.ModelAdmin):
+    list_display = ('generated_at', 'report_title', 'case', 'evidence', 'generated_by', 'checksum_sha256')
+    list_filter = ('generated_at',)
+    search_fields = ('report_title', 'case__case_number', 'generated_by__username', 'checksum_sha256')
+    readonly_fields = ('generated_at', 'checksum_sha256')

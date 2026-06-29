@@ -68,7 +68,13 @@ class AuditLog(models.Model):
         ('evidence_upload', 'Evidence Uploaded'),
         ('evidence_delete', 'Evidence Deleted'),
         ('analysis_run',    'Analysis Run'),
+        ('request_submitted', 'Analysis Request Submitted'),
+        ('request_approved', 'Analysis Request Approved'),
+        ('request_rejected', 'Analysis Request Rejected'),
+        ('reconstruction_run', 'Reconstruction Run'),
+        ('report_generated', 'Report Generated'),
         ('report_download', 'Report Downloaded'),
+        ('backup_created', 'Backup Created'),
     ]
 
     user       = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
@@ -108,3 +114,52 @@ class SystemSetting(models.Model):
 
     def __str__(self):
         return self.key
+
+
+class Notification(models.Model):
+    NOTIFICATION_TYPES = [
+        ('user', 'User'),
+        ('case', 'Case'),
+        ('analysis', 'Analysis'),
+        ('reconstruction', 'Reconstruction'),
+        ('report', 'Report'),
+        ('backup', 'Backup'),
+        ('system', 'System'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    message = models.TextField()
+    notification_type = models.CharField(max_length=30, choices=NOTIFICATION_TYPES, default='system')
+    related_object_type = models.CharField(max_length=80, blank=True, default='')
+    related_object_id = models.CharField(max_length=80, blank=True, default='')
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user}: {self.notification_type}"
+
+
+class BackupRecord(models.Model):
+    STATUS_CHOICES = [
+        ('success', 'Success'),
+        ('failed', 'Failed'),
+    ]
+
+    filename = models.CharField(max_length=500)
+    database_engine = models.CharField(max_length=120)
+    size_bytes = models.BigIntegerField(default=0)
+    checksum_sha256 = models.CharField(max_length=64, blank=True, default='')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='success')
+    error_message = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.filename
