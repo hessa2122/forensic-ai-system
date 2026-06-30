@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,141 +8,622 @@
     <title>Forensic AI System</title>
 
     <style>
+        :root {
+            --primary: #38bdf8;
+            --secondary: #2563eb;
+            --dark: #020617;
+            --text: #cbd5e1;
+            --border: rgba(255, 255, 255, 0.13);
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: Arial, sans-serif;
         }
 
         body {
             min-height: 100vh;
+            overflow-x: hidden;
             color: white;
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: var(--dark);
+        }
+
+        .home-page {
+            position: relative;
+            min-height: 100vh;
+            overflow: hidden;
+
             background:
                 linear-gradient(
-                    rgba(2, 6, 23, 0.88),
-                    rgba(15, 23, 42, 0.92)
+                    90deg,
+                    rgba(2, 6, 23, 0.98) 0%,
+                    rgba(2, 6, 23, 0.92) 48%,
+                    rgba(2, 6, 23, 0.65) 100%
                 ),
-                url("https://images.unsplash.com/photo-1563986768609-322da13575f3")
+                url("https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=1920&q=90")
                 center/cover no-repeat;
         }
 
+        .home-page::before {
+            content: "";
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            top: 80px;
+            right: -100px;
+            border-radius: 50%;
+            background: rgba(37, 99, 235, 0.17);
+            filter: blur(100px);
+            pointer-events: none;
+        }
+
+        .home-page::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            opacity: 0.22;
+            pointer-events: none;
+
+            background-image:
+                linear-gradient(
+                    rgba(56, 189, 248, 0.05) 1px,
+                    transparent 1px
+                ),
+                linear-gradient(
+                    90deg,
+                    rgba(56, 189, 248, 0.05) 1px,
+                    transparent 1px
+                );
+
+            background-size: 50px 50px;
+        }
+
+        /* Navigation */
+
         nav {
-            height: 80px;
+            position: relative;
+            z-index: 10;
+            height: 78px;
             padding: 0 8%;
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid rgba(255,255,255,0.12);
+            justify-content: space-between;
+
+            border-bottom: 1px solid var(--border);
             background: rgba(2, 6, 23, 0.65);
-            backdrop-filter: blur(12px);
+            backdrop-filter: blur(14px);
         }
 
         .logo {
-            font-size: 24px;
-            font-weight: bold;
-            color: #38bdf8;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: white;
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            position: relative;
+            width: 42px;
+            height: 42px;
+            display: grid;
+            place-items: center;
+
+            border: 1px solid rgba(56, 189, 248, 0.38);
+            border-radius: 11px;
+            background: rgba(56, 189, 248, 0.11);
+        }
+
+        .logo-icon::before {
+            content: "";
+            width: 15px;
+            height: 15px;
+            border: 3px solid var(--primary);
+            border-radius: 50%;
+        }
+
+        .logo-icon::after {
+            content: "";
+            position: absolute;
+            right: 8px;
+            bottom: 7px;
+            width: 3px;
+            height: 11px;
+            border-radius: 4px;
+            background: var(--primary);
+            transform: rotate(-42deg);
+        }
+
+        .logo-text {
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .logo-text span {
+            color: var(--primary);
         }
 
         .login-button {
-            text-decoration: none;
+            padding: 11px 25px;
             color: white;
-            background: #2563eb;
-            padding: 12px 25px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 700;
+
+            border: 1px solid rgba(56, 189, 248, 0.35);
             border-radius: 8px;
-            font-weight: bold;
-            transition: 0.3s;
+            background: linear-gradient(135deg, #2563eb, #0284c7);
+            box-shadow: 0 10px 25px rgba(37, 99, 235, 0.28);
+
+            transition: 0.3s ease;
         }
 
         .login-button:hover {
-            background: #1d4ed8;
             transform: translateY(-2px);
+            box-shadow: 0 15px 35px rgba(37, 99, 235, 0.42);
         }
 
+        /* Hero section */
+
         .hero {
-            min-height: calc(100vh - 80px);
-            padding: 70px 8%;
-            display: flex;
+            position: relative;
+            z-index: 2;
+            min-height: calc(100vh - 78px);
+            padding: 65px 8%;
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
             align-items: center;
+            gap: 70px;
         }
 
         .hero-content {
-            max-width: 720px;
+            max-width: 750px;
+            animation: fadeUp 0.8s ease both;
         }
 
         .tag {
-            display: inline-block;
+            width: fit-content;
+            margin-bottom: 23px;
             padding: 8px 15px;
-            margin-bottom: 22px;
-            border: 1px solid rgba(56, 189, 248, 0.35);
-            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+
             color: #7dd3fc;
-            background: rgba(14, 165, 233, 0.12);
+            border: 1px solid rgba(56, 189, 248, 0.30);
+            border-radius: 30px;
+            background: rgba(14, 165, 233, 0.11);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .tag-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+            box-shadow: 0 0 10px rgba(34, 197, 94, 0.9);
         }
 
         h1 {
-            font-size: 58px;
-            line-height: 1.1;
-            margin-bottom: 22px;
+            max-width: 760px;
+            margin-bottom: 24px;
+            font-size: clamp(45px, 5vw, 67px);
+            line-height: 1.08;
+            letter-spacing: -2px;
         }
 
         h1 span {
-            color: #38bdf8;
+            color: var(--primary);
         }
 
         .description {
             max-width: 650px;
-            margin-bottom: 35px;
-            color: #cbd5e1;
-            font-size: 18px;
-            line-height: 1.7;
+            margin-bottom: 34px;
+            color: var(--text);
+            font-size: 17px;
+            line-height: 1.75;
         }
 
-        .actions {
+        .buttons {
             display: flex;
-            gap: 15px;
+            align-items: center;
             flex-wrap: wrap;
+            gap: 15px;
         }
 
         .primary-button,
         .secondary-button {
-            display: inline-block;
-            padding: 14px 28px;
+            min-height: 51px;
+            padding: 0 27px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+
             border-radius: 9px;
+            font-size: 15px;
+            font-weight: 700;
             text-decoration: none;
-            font-weight: bold;
+            transition: 0.3s ease;
         }
 
         .primary-button {
             color: white;
-            background: #2563eb;
+            background: linear-gradient(135deg, #2563eb, #0284c7);
+            box-shadow: 0 13px 30px rgba(37, 99, 235, 0.30);
+        }
+
+        .primary-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 18px 38px rgba(37, 99, 235, 0.42);
         }
 
         .secondary-button {
             color: #e2e8f0;
-            border: 1px solid rgba(255,255,255,0.25);
-            background: rgba(255,255,255,0.07);
-        }
-
-        .primary-button:hover {
-            background: #1d4ed8;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            background: rgba(255, 255, 255, 0.07);
+            backdrop-filter: blur(8px);
         }
 
         .secondary-button:hover {
-            background: rgba(255,255,255,0.13);
+            transform: translateY(-2px);
+            border-color: rgba(56, 189, 248, 0.45);
+            background: rgba(56, 189, 248, 0.12);
+        }
+
+        .security-row {
+            margin-top: 38px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 23px;
+        }
+
+        .security-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #aebdd0;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .check-icon {
+            width: 22px;
+            height: 22px;
+            display: grid;
+            place-items: center;
+
+            color: #86efac;
+            border: 1px solid rgba(34, 197, 94, 0.30);
+            border-radius: 50%;
+            background: rgba(34, 197, 94, 0.10);
+            font-size: 11px;
+        }
+
+        /* Forensic visual */
+
+        .visual-area {
+            position: relative;
+            width: 100%;
+            max-width: 430px;
+            height: 430px;
+            justify-self: end;
+            display: grid;
+            place-items: center;
+
+            animation: fadeUp 0.9s 0.12s ease both;
+        }
+
+        .outer-circle {
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            border: 1px solid rgba(56, 189, 248, 0.15);
+            border-radius: 50%;
+            animation: rotateCircle 20s linear infinite;
+        }
+
+        .outer-circle::before,
+        .outer-circle::after {
+            content: "";
+            position: absolute;
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            background: var(--primary);
+            box-shadow: 0 0 16px var(--primary);
+        }
+
+        .outer-circle::before {
+            top: 35px;
+            left: 75px;
+        }
+
+        .outer-circle::after {
+            right: 32px;
+            bottom: 90px;
+        }
+
+        .middle-circle {
+            position: absolute;
+            width: 310px;
+            height: 310px;
+            border: 1px dashed rgba(56, 189, 248, 0.25);
+            border-radius: 50%;
+            animation: reverseRotate 16s linear infinite;
+        }
+
+        .scanner-card {
+            position: relative;
+            width: 255px;
+            height: 300px;
+            overflow: hidden;
+            display: grid;
+            place-items: center;
+
+            border: 1px solid rgba(56, 189, 248, 0.30);
+            border-radius: 24px;
+            background:
+                radial-gradient(
+                    circle,
+                    rgba(14, 165, 233, 0.18),
+                    transparent 66%
+                ),
+                rgba(15, 23, 42, 0.78);
+
+            box-shadow:
+                0 30px 70px rgba(0, 0, 0, 0.45),
+                0 0 45px rgba(37, 99, 235, 0.10);
+
+            backdrop-filter: blur(18px);
+        }
+
+        .scanner-card::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            opacity: 0.35;
+
+            background-image:
+                linear-gradient(
+                    rgba(56, 189, 248, 0.12) 1px,
+                    transparent 1px
+                ),
+                linear-gradient(
+                    90deg,
+                    rgba(56, 189, 248, 0.12) 1px,
+                    transparent 1px
+                );
+
+            background-size: 27px 27px;
+        }
+
+        .fingerprint {
+            position: relative;
+            width: 115px;
+            height: 150px;
+            z-index: 2;
+        }
+
+        .fingerprint span {
+            position: absolute;
+            left: 50%;
+            border: 2px solid rgba(56, 189, 248, 0.82);
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            transform: translateX(-50%);
+        }
+
+        .fingerprint span:nth-child(1) {
+            top: 5px;
+            width: 105px;
+            height: 135px;
+        }
+
+        .fingerprint span:nth-child(2) {
+            top: 20px;
+            width: 82px;
+            height: 110px;
+        }
+
+        .fingerprint span:nth-child(3) {
+            top: 36px;
+            width: 59px;
+            height: 82px;
+        }
+
+        .fingerprint span:nth-child(4) {
+            top: 52px;
+            width: 35px;
+            height: 55px;
+        }
+
+        .scan-line {
+            position: absolute;
+            z-index: 4;
+            left: 0;
+            right: 0;
+            top: 20px;
+            height: 2px;
+            background: var(--primary);
+            box-shadow: 0 0 17px var(--primary);
+            animation: scan 3s ease-in-out infinite;
+        }
+
+        .visual-status {
+            position: absolute;
+            z-index: 5;
+            right: -18px;
+            bottom: 55px;
+            padding: 14px 17px;
+
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 12px;
+            background: rgba(15, 23, 42, 0.90);
+            box-shadow: 0 16px 35px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(12px);
+        }
+
+        .visual-status small {
+            display: block;
+            margin-bottom: 6px;
+            color: #94a3b8;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+        }
+
+        .visual-status strong {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+            font-size: 13px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+            box-shadow: 0 0 9px rgba(34, 197, 94, 0.9);
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(25px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes scan {
+            0%,
+            100% {
+                top: 25px;
+            }
+
+            50% {
+                top: calc(100% - 25px);
+            }
+        }
+
+        @keyframes rotateCircle {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes reverseRotate {
+            from {
+                transform: rotate(360deg);
+            }
+
+            to {
+                transform: rotate(0deg);
+            }
+        }
+
+        @media (max-width: 950px) {
+            .hero {
+                grid-template-columns: 1fr;
+                gap: 45px;
+            }
+
+            .visual-area {
+                justify-self: start;
+            }
         }
 
         @media (max-width: 700px) {
             nav {
+                height: 70px;
                 padding: 0 5%;
             }
 
+            .logo-text {
+                font-size: 18px;
+            }
+
+            .logo-icon {
+                width: 38px;
+                height: 38px;
+            }
+
+            .login-button {
+                padding: 10px 18px;
+            }
+
             .hero {
-                padding: 50px 6%;
+                min-height: calc(100vh - 70px);
+                padding: 55px 6% 75px;
             }
 
             h1 {
-                font-size: 40px;
+                font-size: 42px;
+                letter-spacing: -1px;
+            }
+
+            .description {
+                font-size: 16px;
+            }
+
+            .buttons {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .primary-button,
+            .secondary-button {
+                width: 100%;
+            }
+
+            .security-row {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .visual-area {
+                max-width: 100%;
+                height: 370px;
+            }
+
+            .outer-circle {
+                width: 340px;
+                height: 340px;
+            }
+
+            .middle-circle {
+                width: 270px;
+                height: 270px;
+            }
+
+            .scanner-card {
+                width: 220px;
+                height: 270px;
+            }
+
+            .visual-status {
+                right: 0;
+            }
+        }
+
+        @media (max-width: 400px) {
+            .visual-area {
+                transform: scale(0.88);
+                transform-origin: left center;
             }
         }
     </style>
@@ -149,37 +631,99 @@
 
 <body>
 
-<nav>
-    <div class="logo">Forensic AI</div>
+<div class="home-page">
 
-    <a href="{% url 'login' %}" class="login-button">
-        Login
-    </a>
-</nav>
+    <nav>
+        <a href="#" class="logo">
+            <div class="logo-icon"></div>
 
-<section class="hero">
-    <div class="hero-content">
+            <div class="logo-text">
+                Forensic <span>AI</span>
+            </div>
+        </a>
 
-        <div class="tag">
-            AI-Powered Digital Forensic Investigation
+        <a href="{% url 'login' %}" class="login-button">
+            Login
+        </a>
+    </nav>
+
+    <section class="hero">
+
+        <div class="hero-content">
+
+            <div class="tag">
+                <span class="tag-dot"></span>
+                AI-Powered Digital Forensic Investigation
+            </div>
+
+            <h1>
+                Intelligent evidence analysis for
+                <span>modern investigations.</span>
+            </h1>
+
+            <p class="description">
+                A secure forensic investigation platform for managing cases,
+                uploading image and video evidence, detecting weapons, blood
+                and fingerprints, generating reports and reconstructing crime
+                scenes through interactive 3D visualization.
+            </p>
+
+            
+
+            <div class="security-row">
+
+                <div class="security-item">
+                    <span class="check-icon">✓</span>
+                    Secure Access
+                </div>
+
+                <div class="security-item">
+                    <span class="check-icon">✓</span>
+                    AI Evidence Detection
+                </div>
+
+                <div class="security-item">
+                    <span class="check-icon">✓</span>
+                    Digital Investigation Reports
+                </div>
+
+            </div>
+
         </div>
 
-        <h1>
-            Intelligent Evidence Analysis for
-            <span>Modern Investigations</span>
-        </h1>
+        <div class="visual-area" id="forensic-visual">
 
-        <p class="description">
-            A secure forensic investigation platform for managing cases,
-            uploading evidence, detecting forensic objects, requesting AI
-            analysis, generating reports and creating 3D crime-scene
-            visualizations.
-        </p>
+            <div class="outer-circle"></div>
+            <div class="middle-circle"></div>
 
-        
+            <div class="scanner-card">
 
-    </div>
-</section>
+                <div class="scan-line"></div>
+
+                <div class="fingerprint">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+
+            </div>
+
+            <div class="visual-status">
+                <small>Forensic analysis</small>
+
+                <strong>
+                    <span class="status-dot"></span>
+                    System Ready
+                </strong>
+            </div>
+
+        </div>
+
+    </section>
+
+</div>
 
 </body>
 </html>
+

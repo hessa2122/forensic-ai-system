@@ -876,6 +876,1521 @@ tr:hover td{background:rgba(34,200,255,.04) !important;}
 @media(max-width:1120px){.fd-hero{grid-template-columns:1fr}.fd-kpi-grid{grid-template-columns:repeat(2,1fr)}.fd-dashboard-grid{grid-template-columns:1fr}}
 @media(max-width:760px){.fd-kpi-grid{grid-template-columns:1fr}.fd-hero{padding:20px}.fd-section-bar{align-items:flex-start;flex-direction:column}.sidebar{width:220px !important}}
 
+
+/* =========================================================
+   FORENSICAI USER DASHBOARD — STYLISH UI REFRESH
+   UI-only update. Existing IDs, API calls and JavaScript remain unchanged.
+   ========================================================= */
+
+:root{
+  --ux-bg:#030712;
+  --ux-bg-2:#07111f;
+  --ux-panel:rgba(10,20,36,.86);
+  --ux-panel-strong:rgba(8,17,31,.96);
+  --ux-line:rgba(125,211,252,.16);
+  --ux-line-strong:rgba(125,211,252,.30);
+  --ux-text:#f8fafc;
+  --ux-muted:#94a3b8;
+  --ux-blue:#38bdf8;
+  --ux-blue-2:#2563eb;
+  --ux-cyan:#22d3ee;
+  --ux-green:#22c55e;
+  --ux-red:#fb7185;
+  --ux-amber:#fbbf24;
+  --ux-purple:#a78bfa;
+  --ux-shadow:0 26px 70px rgba(0,0,0,.38);
+}
+
+body{
+  background:
+    radial-gradient(circle at 12% 4%,rgba(14,165,233,.16),transparent 28%),
+    radial-gradient(circle at 91% 8%,rgba(37,99,235,.14),transparent 29%),
+    linear-gradient(135deg,var(--ux-bg),var(--ux-bg-2) 52%,#020617) !important;
+}
+
+body::before{
+  opacity:.28 !important;
+  background-size:44px 44px !important;
+  mask-image:linear-gradient(to bottom,black,transparent 92%);
+}
+
+nav{
+  height:70px !important;
+  padding:0 24px !important;
+  background:rgba(3,7,18,.82) !important;
+  border-bottom:1px solid var(--ux-line) !important;
+  box-shadow:0 18px 48px rgba(0,0,0,.32) !important;
+  backdrop-filter:blur(22px) saturate(140%) !important;
+}
+
+.logo{
+  gap:11px !important;
+  font-size:16px !important;
+  letter-spacing:-.02em !important;
+}
+
+.logo-icon{
+  width:40px !important;
+  height:40px !important;
+  border-radius:13px !important;
+  background:linear-gradient(145deg,#22d3ee,#2563eb) !important;
+  border:1px solid rgba(255,255,255,.15);
+  box-shadow:0 0 30px rgba(34,211,238,.28) !important;
+}
+
+.nav-badge{
+  padding:4px 8px !important;
+  border-radius:999px !important;
+  background:rgba(251,113,133,.10) !important;
+  border:1px solid rgba(251,113,133,.22) !important;
+  color:#fda4af !important;
+}
+
+.nav-links{
+  gap:7px !important;
+  padding:5px;
+  border:1px solid rgba(148,163,184,.10);
+  border-radius:13px;
+  background:rgba(255,255,255,.025);
+}
+
+.nav-link{
+  padding:8px 14px !important;
+  border-radius:9px !important;
+  color:#94a3b8 !important;
+}
+
+.nav-link:hover,
+.nav-link.active{
+  background:linear-gradient(135deg,rgba(34,211,238,.13),rgba(37,99,235,.10)) !important;
+  border-color:rgba(125,211,252,.18) !important;
+  color:#f8fafc !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+.nav-status{
+  padding:8px 11px;
+  border:1px solid rgba(34,197,94,.16);
+  border-radius:999px;
+  background:rgba(34,197,94,.06);
+  color:#86efac !important;
+}
+
+.top-logout-btn,
+.top-login-btn{
+  min-height:37px;
+  border-radius:10px !important;
+}
+
+.app{
+  height:calc(100vh - 70px) !important;
+}
+
+.sidebar{
+  width:272px !important;
+  padding:18px 14px !important;
+  background:
+    linear-gradient(180deg,rgba(7,17,31,.98),rgba(3,7,18,.98)) !important;
+  border-right:1px solid var(--ux-line) !important;
+  box-shadow:22px 0 60px rgba(0,0,0,.20) !important;
+}
+
+.sidebar-label{
+  margin:18px 10px 8px !important;
+  color:#64748b !important;
+  font-size:10px !important;
+  letter-spacing:.16em !important;
+}
+
+.sidebar-item{
+  min-height:44px;
+  padding:10px 12px !important;
+  margin-bottom:6px !important;
+  border-radius:12px !important;
+  color:#9fb0c7 !important;
+}
+
+.sidebar-item:hover{
+  transform:translateX(4px);
+  background:rgba(56,189,248,.075) !important;
+  border-color:rgba(125,211,252,.10) !important;
+}
+
+.sidebar-item.active{
+  color:#e0f2fe !important;
+  background:
+    linear-gradient(135deg,rgba(34,211,238,.14),rgba(37,99,235,.12)) !important;
+  border-color:rgba(125,211,252,.24) !important;
+  box-shadow:
+    0 10px 24px rgba(2,132,199,.10),
+    inset 3px 0 0 #38bdf8 !important;
+}
+
+.side-icon{
+  width:24px !important;
+  height:24px;
+  display:grid !important;
+  place-items:center;
+  border-radius:8px;
+  background:rgba(255,255,255,.035);
+}
+
+.model-box{
+  margin:8px 4px 0 !important;
+  padding:14px !important;
+  border-radius:16px !important;
+  background:
+    linear-gradient(145deg,rgba(34,211,238,.055),rgba(37,99,235,.035)) !important;
+  border:1px solid rgba(125,211,252,.14) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.035);
+}
+
+.model-status{
+  color:#e2e8f0 !important;
+  font-weight:650;
+}
+
+.model-info{
+  color:#7dd3fc !important;
+}
+
+.main{
+  padding:26px !important;
+  background:transparent !important;
+}
+
+/* Dashboard */
+.ux-dashboard{
+  display:flex;
+  flex-direction:column;
+  gap:18px;
+  max-width:1600px;
+  margin:0 auto;
+}
+
+.ux-hero{
+  position:relative;
+  overflow:hidden;
+  display:grid;
+  grid-template-columns:minmax(0,1.55fr) minmax(300px,.65fr);
+  gap:22px;
+  min-height:275px;
+  padding:34px;
+  border:1px solid rgba(125,211,252,.18);
+  border-radius:28px;
+  background:
+    linear-gradient(120deg,rgba(14,165,233,.17),rgba(37,99,235,.08) 46%,rgba(167,139,250,.05)),
+    linear-gradient(180deg,rgba(15,23,42,.88),rgba(2,6,23,.93));
+  box-shadow:var(--ux-shadow),inset 0 1px 0 rgba(255,255,255,.05);
+  isolation:isolate;
+}
+
+.ux-hero::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-2;
+  background-image:
+    linear-gradient(rgba(255,255,255,.023) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.023) 1px,transparent 1px);
+  background-size:36px 36px;
+}
+
+.ux-hero::after{
+  content:"";
+  position:absolute;
+  z-index:-1;
+  width:430px;
+  height:430px;
+  right:-150px;
+  top:-155px;
+  border-radius:50%;
+  border:58px solid rgba(34,211,238,.045);
+  box-shadow:0 0 110px rgba(34,211,238,.08);
+}
+
+.ux-hero-copy{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:flex-start;
+}
+
+.ux-eyebrow{
+  display:inline-flex;
+  align-items:center;
+  gap:9px;
+  padding:8px 13px;
+  margin-bottom:17px;
+  border:1px solid rgba(125,211,252,.22);
+  border-radius:999px;
+  background:rgba(34,211,238,.075);
+  color:#7dd3fc;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+}
+
+.ux-eyebrow-dot{
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:#22c55e;
+  box-shadow:0 0 12px #22c55e;
+  animation:uxPulse 1.8s infinite;
+}
+
+.ux-hero h1{
+  max-width:820px;
+  margin:0 0 14px;
+  color:#f8fafc;
+  font-size:clamp(2.2rem,4.2vw,4.2rem);
+  line-height:.98;
+  letter-spacing:-.055em;
+}
+
+.ux-hero h1 span{
+  color:transparent;
+  background:linear-gradient(90deg,#67e8f9,#38bdf8 45%,#818cf8);
+  -webkit-background-clip:text;
+  background-clip:text;
+  text-shadow:none;
+}
+
+.ux-hero p{
+  max-width:770px;
+  margin:0 0 22px;
+  color:#a6b6cb;
+  font-size:15px;
+  line-height:1.75;
+}
+
+.ux-hero-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:11px;
+}
+
+.ux-hero-actions .btn{
+  min-height:43px;
+  padding:.72rem 1.15rem !important;
+}
+
+.ux-command-card{
+  position:relative;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  gap:20px;
+  padding:22px;
+  border:1px solid rgba(148,163,184,.15);
+  border-radius:22px;
+  background:rgba(2,6,23,.48);
+  backdrop-filter:blur(18px);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+.ux-command-card::before{
+  content:"";
+  position:absolute;
+  width:140px;
+  height:140px;
+  right:-60px;
+  bottom:-70px;
+  border-radius:50%;
+  background:rgba(56,189,248,.08);
+  filter:blur(5px);
+}
+
+.ux-command-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+
+.ux-command-title{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  color:#f8fafc;
+  font-size:14px;
+  font-weight:700;
+}
+
+.ux-live{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  padding:6px 9px;
+  border-radius:999px;
+  border:1px solid rgba(34,197,94,.20);
+  background:rgba(34,197,94,.08);
+  color:#86efac;
+  font:700 9px var(--mono);
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+.ux-live::before{
+  content:"";
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:#22c55e;
+  box-shadow:0 0 10px #22c55e;
+}
+
+.ux-model-name{
+  padding:13px;
+  border:1px solid rgba(125,211,252,.15);
+  border-radius:13px;
+  background:rgba(34,211,238,.06);
+  color:#7dd3fc;
+  font:600 12px var(--mono);
+  overflow-wrap:anywhere;
+}
+
+.ux-model-meta{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:9px;
+}
+
+.ux-model-meta div{
+  padding:12px;
+  border:1px solid rgba(148,163,184,.11);
+  border-radius:12px;
+  background:rgba(255,255,255,.025);
+}
+
+.ux-model-meta small{
+  display:block;
+  margin-bottom:5px;
+  color:#64748b;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.09em;
+  text-transform:uppercase;
+}
+
+.ux-model-meta strong{
+  color:#e2e8f0;
+  font-size:12px;
+}
+
+.ux-section-head{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:18px;
+  padding:2px 2px 0;
+}
+
+.ux-section-head h2{
+  margin:0 0 4px;
+  color:#f8fafc;
+  font-size:20px;
+  letter-spacing:-.025em;
+}
+
+.ux-section-head p{
+  margin:0;
+  color:#8090a7;
+  font-size:12px;
+}
+
+.ux-kpis{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  gap:13px;
+}
+
+.ux-kpi{
+  position:relative;
+  overflow:hidden;
+  min-height:125px;
+  padding:17px;
+  border:1px solid rgba(148,163,184,.13);
+  border-radius:18px;
+  background:
+    linear-gradient(150deg,rgba(15,23,42,.86),rgba(7,15,28,.92));
+  box-shadow:0 16px 38px rgba(0,0,0,.19);
+  transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease;
+}
+
+.ux-kpi::before{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  top:0;
+  height:3px;
+  background:var(--kpi-color,#38bdf8);
+}
+
+.ux-kpi::after{
+  content:"";
+  position:absolute;
+  width:95px;
+  height:95px;
+  right:-42px;
+  bottom:-48px;
+  border-radius:50%;
+  background:color-mix(in srgb,var(--kpi-color,#38bdf8) 10%,transparent);
+}
+
+.ux-kpi:hover{
+  transform:translateY(-4px);
+  border-color:color-mix(in srgb,var(--kpi-color,#38bdf8) 45%,transparent);
+  box-shadow:0 23px 48px rgba(0,0,0,.27);
+}
+
+.ux-kpi-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.ux-kpi-icon{
+  width:38px;
+  height:38px;
+  display:grid;
+  place-items:center;
+  border:1px solid color-mix(in srgb,var(--kpi-color,#38bdf8) 28%,transparent);
+  border-radius:11px;
+  background:color-mix(in srgb,var(--kpi-color,#38bdf8) 10%,transparent);
+  color:var(--kpi-color,#38bdf8);
+  font-size:17px;
+}
+
+.ux-kpi-label{
+  color:#8090a7;
+  font-size:9px;
+  font-weight:850;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+.ux-kpi-value{
+  position:relative;
+  z-index:1;
+  margin-top:15px;
+  color:#f8fafc;
+  font:800 28px/1 var(--mono);
+}
+
+.ux-kpi-sub{
+  position:relative;
+  z-index:1;
+  margin-top:7px;
+  color:#64748b;
+  font-size:10px;
+}
+
+.ux-kpi-blue{--kpi-color:#38bdf8}
+.ux-kpi-green{--kpi-color:#22c55e}
+.ux-kpi-red{--kpi-color:#fb7185}
+.ux-kpi-purple{--kpi-color:#a78bfa}
+.ux-kpi-amber{--kpi-color:#fbbf24}
+.ux-kpi-cyan{--kpi-color:#22d3ee}
+
+.ux-content-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1.12fr) minmax(320px,.88fr);
+  gap:16px;
+}
+
+.ux-panel{
+  min-height:305px;
+  overflow:hidden;
+  border:1px solid rgba(148,163,184,.13);
+  border-radius:22px;
+  background:rgba(10,20,36,.78);
+  box-shadow:0 18px 44px rgba(0,0,0,.22);
+  backdrop-filter:blur(16px);
+}
+
+.ux-panel-head{
+  min-height:74px;
+  padding:18px 20px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:13px;
+  border-bottom:1px solid rgba(148,163,184,.11);
+  background:linear-gradient(90deg,rgba(56,189,248,.045),transparent);
+}
+
+.ux-panel-title{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.ux-panel-icon{
+  width:41px;
+  height:41px;
+  display:grid;
+  place-items:center;
+  flex:0 0 auto;
+  border:1px solid rgba(125,211,252,.17);
+  border-radius:12px;
+  background:rgba(56,189,248,.075);
+  font-size:18px;
+}
+
+.ux-panel h3{
+  margin:0 0 4px;
+  color:#f8fafc;
+  font-size:14px;
+}
+
+.ux-panel-head p{
+  margin:0;
+  color:#8090a7;
+  font-size:11px;
+}
+
+.ux-panel-body{
+  padding:18px 20px 20px;
+}
+
+.ux-chart{
+  height:205px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.ux-chart canvas{
+  max-height:205px !important;
+}
+
+.ux-recent{
+  max-height:205px;
+  overflow-y:auto;
+  padding-right:4px;
+}
+
+.ux-side-stack{
+  display:grid;
+  gap:16px;
+}
+
+.ux-quick-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+
+.ux-quick{
+  min-height:98px;
+  padding:14px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  align-items:flex-start;
+  border:1px solid rgba(148,163,184,.12);
+  border-radius:15px;
+  background:rgba(2,6,23,.34);
+  color:inherit;
+  cursor:pointer;
+  transition:transform .18s ease,border-color .18s ease,background .18s ease;
+}
+
+.ux-quick:hover{
+  transform:translateY(-3px);
+  border-color:rgba(125,211,252,.25);
+  background:rgba(56,189,248,.07);
+}
+
+.ux-quick span{
+  font-size:20px;
+}
+
+.ux-quick strong{
+  display:block;
+  color:#e2e8f0;
+  font-size:11px;
+}
+
+.ux-account{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:15px;
+  border:1px solid rgba(148,163,184,.12);
+  border-radius:15px;
+  background:linear-gradient(135deg,rgba(167,139,250,.07),rgba(37,99,235,.04));
+}
+
+.ux-avatar{
+  width:42px;
+  height:42px;
+  flex:0 0 auto;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(167,139,250,.22);
+  border-radius:13px;
+  background:rgba(167,139,250,.09);
+  color:#c4b5fd;
+  font-weight:800;
+}
+
+.ux-account small{
+  display:block;
+  margin-bottom:3px;
+  color:#64748b;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+.ux-account strong{
+  display:block;
+  color:#f8fafc;
+  font-size:12px;
+}
+
+.ux-account em{
+  display:block;
+  margin-top:3px;
+  color:#86efac;
+  font-size:9px;
+  font-style:normal;
+}
+
+/* Existing functional pages */
+.card,
+.stat-card,
+.detection-card{
+  border-radius:17px !important;
+  background:rgba(10,20,36,.80) !important;
+  border-color:rgba(148,163,184,.13) !important;
+  box-shadow:0 18px 44px rgba(0,0,0,.20) !important;
+}
+
+.section-header{
+  padding:4px 2px;
+}
+
+.section-title{
+  font-size:21px !important;
+  letter-spacing:-.025em !important;
+}
+
+input,
+textarea,
+select{
+  min-height:43px;
+}
+
+.upload-zone{
+  min-height:190px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+}
+
+table{
+  overflow:hidden;
+  border-radius:12px;
+}
+
+th{
+  padding:.8rem 1rem !important;
+}
+
+td{
+  padding:.8rem 1rem !important;
+}
+
+@keyframes uxPulse{
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:.48;transform:scale(.82)}
+}
+
+@media(max-width:1350px){
+  .ux-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+@media(max-width:1080px){
+  .ux-hero{grid-template-columns:1fr}
+  .ux-content-grid{grid-template-columns:1fr}
+}
+
+@media(max-width:860px){
+  nav{padding:0 14px !important}
+  .nav-links{display:none}
+  .sidebar{width:220px !important}
+  .main{padding:18px !important}
+  .ux-hero{padding:24px}
+  .ux-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+@media(max-width:680px){
+  .app{overflow:visible !important;height:auto !important}
+  .sidebar{display:none}
+  .main{padding:14px !important}
+  .ux-hero{padding:20px;border-radius:20px}
+  .ux-hero h1{font-size:2.25rem}
+  .ux-kpis{grid-template-columns:1fr}
+  .ux-section-head{align-items:flex-start;flex-direction:column}
+  .ux-quick-grid{grid-template-columns:1fr}
+  .nav-status{display:none}
+}
+
+
+/* =========================================================
+   FORENSIC CONTROL CENTER UI
+   Serious, compact, technical dashboard styling.
+   Existing Django, API and JavaScript functionality is preserved.
+   ========================================================= */
+
+:root{
+  --cc-bg:#03070d;
+  --cc-bg-soft:#07101a;
+  --cc-sidebar:#07111c;
+  --cc-panel:#0a1624;
+  --cc-panel-soft:#0d1b2b;
+  --cc-border:#183047;
+  --cc-border-soft:rgba(125,211,252,.14);
+  --cc-text:#eaf4ff;
+  --cc-muted:#7f93aa;
+  --cc-cyan:#38bdf8;
+  --cc-blue:#2563eb;
+  --cc-green:#22c55e;
+  --cc-amber:#f59e0b;
+  --cc-red:#ef4444;
+  --cc-purple:#8b5cf6;
+  --cc-shadow:0 22px 55px rgba(0,0,0,.35);
+}
+
+/* Global visual system */
+body{
+  background:
+    radial-gradient(circle at 82% 8%,rgba(14,165,233,.10),transparent 28%),
+    linear-gradient(135deg,#02050a,#05101a 58%,#02050a) !important;
+  color:var(--cc-text) !important;
+}
+
+body::before{
+  opacity:.16 !important;
+  background-size:34px 34px !important;
+}
+
+nav{
+  height:66px !important;
+  padding:0 22px !important;
+  background:rgba(3,7,13,.96) !important;
+  border-bottom:1px solid var(--cc-border) !important;
+  box-shadow:0 12px 34px rgba(0,0,0,.34) !important;
+  backdrop-filter:blur(16px) !important;
+}
+
+.logo{
+  color:var(--cc-text) !important;
+  font-size:15px !important;
+  letter-spacing:.01em !important;
+}
+
+.logo-icon{
+  width:36px !important;
+  height:36px !important;
+  border-radius:8px !important;
+  background:linear-gradient(145deg,#0ea5e9,#1d4ed8) !important;
+  border:1px solid rgba(125,211,252,.22) !important;
+  box-shadow:0 0 20px rgba(14,165,233,.22) !important;
+}
+
+.nav-badge{
+  padding:4px 8px !important;
+  border-radius:4px !important;
+  background:rgba(239,68,68,.08) !important;
+  border:1px solid rgba(239,68,68,.24) !important;
+  color:#fca5a5 !important;
+  letter-spacing:.10em !important;
+}
+
+.nav-links{
+  gap:4px !important;
+  padding:4px !important;
+  border:1px solid rgba(125,211,252,.09) !important;
+  border-radius:8px !important;
+  background:rgba(255,255,255,.018) !important;
+}
+
+.nav-link{
+  padding:8px 13px !important;
+  border-radius:5px !important;
+  color:#8295aa !important;
+  font-family:var(--mono) !important;
+  font-size:11px !important;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+
+.nav-link:hover,
+.nav-link.active{
+  background:rgba(14,165,233,.10) !important;
+  border-color:rgba(56,189,248,.16) !important;
+  color:#7dd3fc !important;
+  box-shadow:none !important;
+}
+
+.nav-status{
+  padding:7px 10px !important;
+  border:1px solid rgba(34,197,94,.17) !important;
+  border-radius:5px !important;
+  background:rgba(34,197,94,.055) !important;
+  color:#86efac !important;
+  font-size:10px !important;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+
+.top-logout-btn,
+.top-login-btn{
+  min-height:35px !important;
+  padding:7px 12px !important;
+  border-radius:5px !important;
+  font-size:10px !important;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  box-shadow:none !important;
+}
+
+.app{
+  height:calc(100vh - 66px) !important;
+}
+
+.sidebar{
+  width:248px !important;
+  padding:16px 12px !important;
+  background:
+    linear-gradient(180deg,var(--cc-sidebar),#040a11) !important;
+  border-right:1px solid var(--cc-border) !important;
+  box-shadow:none !important;
+}
+
+.sidebar-label{
+  margin:17px 10px 8px !important;
+  color:#52677e !important;
+  font-size:9px !important;
+  letter-spacing:.16em !important;
+}
+
+.sidebar-item{
+  min-height:42px !important;
+  padding:10px 11px !important;
+  margin-bottom:5px !important;
+  border-radius:6px !important;
+  color:#8093a8 !important;
+  font-family:var(--mono);
+  font-size:11px !important;
+  border:1px solid transparent !important;
+}
+
+.sidebar-item:hover{
+  transform:none !important;
+  background:rgba(56,189,248,.045) !important;
+  border-color:rgba(56,189,248,.10) !important;
+  color:#cfeeff !important;
+}
+
+.sidebar-item.active{
+  background:rgba(14,165,233,.09) !important;
+  border-color:rgba(56,189,248,.24) !important;
+  color:#7dd3fc !important;
+  box-shadow:inset 3px 0 0 #38bdf8 !important;
+}
+
+.side-icon{
+  width:22px !important;
+  height:22px !important;
+  display:grid !important;
+  place-items:center;
+  border-radius:4px !important;
+  background:rgba(56,189,248,.05) !important;
+  font-size:13px !important;
+}
+
+.model-box{
+  margin:8px 4px 0 !important;
+  padding:13px !important;
+  border:1px solid rgba(125,211,252,.12) !important;
+  border-radius:7px !important;
+  background:rgba(56,189,248,.035) !important;
+  box-shadow:none !important;
+}
+
+.model-status{
+  color:#cfeeff !important;
+  font-size:11px !important;
+}
+
+.model-info{
+  color:#7dd3fc !important;
+}
+
+.main{
+  padding:22px !important;
+  background:transparent !important;
+}
+
+/* Control center dashboard */
+.cc-dashboard{
+  width:100%;
+  max-width:1550px;
+  margin:0 auto;
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+
+.cc-command-header{
+  position:relative;
+  overflow:hidden;
+  display:grid;
+  grid-template-columns:minmax(0,1.55fr) minmax(290px,.55fr);
+  gap:22px;
+  min-height:190px;
+  padding:26px 28px;
+  border:1px solid rgba(56,189,248,.18);
+  border-radius:12px;
+  background:
+    linear-gradient(110deg,rgba(14,165,233,.10),transparent 54%),
+    var(--cc-panel);
+  box-shadow:var(--cc-shadow);
+}
+
+.cc-command-header::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:
+    linear-gradient(90deg,rgba(56,189,248,.025) 1px,transparent 1px),
+    linear-gradient(rgba(56,189,248,.025) 1px,transparent 1px);
+  background-size:28px 28px;
+}
+
+.cc-command-copy,
+.cc-operator-panel{
+  position:relative;
+  z-index:1;
+}
+
+.cc-classification{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:14px;
+  padding:6px 9px;
+  border:1px solid rgba(239,68,68,.20);
+  border-radius:4px;
+  background:rgba(239,68,68,.055);
+  color:#fca5a5;
+  font:700 9px var(--mono);
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+
+.cc-classification::before{
+  content:"";
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:var(--cc-red);
+  box-shadow:0 0 8px rgba(239,68,68,.70);
+}
+
+.cc-command-header h1{
+  margin:0 0 10px;
+  color:var(--cc-text);
+  font-size:clamp(2rem,3.6vw,3.6rem);
+  line-height:1;
+  letter-spacing:-.05em;
+}
+
+.cc-command-header h1 span{
+  color:var(--cc-cyan);
+}
+
+.cc-command-header p{
+  max-width:760px;
+  margin:0;
+  color:#8fa3b9;
+  font-size:14px;
+  line-height:1.65;
+}
+
+.cc-operator-panel{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:10px;
+  padding:18px;
+  border:1px solid rgba(125,211,252,.12);
+  border-radius:8px;
+  background:rgba(2,6,12,.42);
+}
+
+.cc-operator-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding-bottom:9px;
+  border-bottom:1px solid rgba(125,211,252,.08);
+}
+
+.cc-operator-row:last-child{
+  padding-bottom:0;
+  border-bottom:0;
+}
+
+.cc-operator-row small{
+  color:#536a82;
+  font:700 9px var(--mono);
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+.cc-operator-row strong{
+  color:#d8efff;
+  font:600 11px var(--mono);
+  text-align:right;
+}
+
+.cc-status-online{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  color:#86efac !important;
+}
+
+.cc-status-online::before{
+  content:"";
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:var(--cc-green);
+  box-shadow:0 0 9px rgba(34,197,94,.72);
+}
+
+.cc-section-title{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:15px;
+  padding:0 2px;
+}
+
+.cc-section-title h2{
+  margin:0 0 4px;
+  color:var(--cc-text);
+  font-size:16px;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+
+.cc-section-title p{
+  margin:0;
+  color:#687f97;
+  font:400 10px var(--mono);
+}
+
+.cc-section-title .btn{
+  min-height:34px;
+  padding:7px 11px !important;
+  font-size:10px !important;
+}
+
+.cc-operations{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;
+}
+
+.cc-operation{
+  position:relative;
+  overflow:hidden;
+  min-height:154px;
+  padding:17px;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  justify-content:space-between;
+  text-align:left;
+  color:inherit;
+  border:1px solid rgba(125,211,252,.12);
+  border-radius:8px;
+  background:
+    linear-gradient(145deg,rgba(13,27,43,.96),rgba(7,16,26,.96));
+  cursor:pointer;
+  transition:transform .18s ease,border-color .18s ease,background .18s ease;
+}
+
+.cc-operation::before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:0;
+  bottom:0;
+  width:3px;
+  background:var(--op-color,var(--cc-cyan));
+}
+
+.cc-operation:hover{
+  transform:translateY(-3px);
+  border-color:rgba(56,189,248,.30);
+  background:#0d1c2c;
+}
+
+.cc-operation-code{
+  color:#536a82;
+  font:700 9px var(--mono);
+  letter-spacing:.10em;
+}
+
+.cc-operation-icon{
+  width:42px;
+  height:42px;
+  display:grid;
+  place-items:center;
+  margin:12px 0;
+  border:1px solid rgba(125,211,252,.14);
+  border-radius:6px;
+  background:rgba(56,189,248,.055);
+  color:var(--op-color,var(--cc-cyan));
+  font-size:18px;
+}
+
+.cc-operation strong{
+  display:block;
+  margin-bottom:5px;
+  color:#e6f5ff;
+  font-size:13px;
+}
+
+.cc-operation p{
+  margin:0;
+  color:#73889e;
+  font-size:10px;
+  line-height:1.5;
+}
+
+.cc-operation-link{
+  margin-top:12px;
+  color:var(--op-color,var(--cc-cyan));
+  font:700 9px var(--mono);
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+
+.cc-op-blue{--op-color:#38bdf8}
+.cc-op-green{--op-color:#22c55e}
+.cc-op-amber{--op-color:#f59e0b}
+.cc-op-purple{--op-color:#a78bfa}
+
+.cc-metrics{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  gap:10px;
+}
+
+.cc-metric{
+  min-height:100px;
+  padding:14px;
+  border:1px solid rgba(125,211,252,.10);
+  border-radius:7px;
+  background:var(--cc-panel);
+}
+
+.cc-metric-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+
+.cc-metric small{
+  color:#5f758b;
+  font:700 8px var(--mono);
+  letter-spacing:.07em;
+  text-transform:uppercase;
+}
+
+.cc-metric-icon{
+  width:28px;
+  height:28px;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(125,211,252,.10);
+  border-radius:5px;
+  background:rgba(56,189,248,.04);
+  font-size:12px;
+}
+
+.cc-metric strong{
+  display:block;
+  margin-top:12px;
+  color:var(--cc-text);
+  font:700 23px/1 var(--mono);
+}
+
+.cc-monitor-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1.15fr) minmax(330px,.85fr);
+  gap:12px;
+}
+
+.cc-monitor{
+  overflow:hidden;
+  border:1px solid rgba(125,211,252,.11);
+  border-radius:8px;
+  background:var(--cc-panel);
+  box-shadow:0 16px 38px rgba(0,0,0,.20);
+}
+
+.cc-monitor-head{
+  min-height:62px;
+  padding:14px 16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  border-bottom:1px solid rgba(125,211,252,.09);
+  background:rgba(56,189,248,.025);
+}
+
+.cc-monitor-title{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.cc-monitor-icon{
+  width:34px;
+  height:34px;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(125,211,252,.13);
+  border-radius:5px;
+  background:rgba(56,189,248,.05);
+  color:var(--cc-cyan);
+  font-size:14px;
+}
+
+.cc-monitor h3{
+  margin:0 0 3px;
+  color:#e5f5ff;
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+
+.cc-monitor-head p{
+  margin:0;
+  color:#61778e;
+  font:400 9px var(--mono);
+}
+
+.cc-monitor-body{
+  padding:15px 16px 17px;
+}
+
+.cc-recent-list{
+  max-height:220px;
+  overflow-y:auto;
+}
+
+.cc-risk-chart{
+  height:220px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.cc-risk-chart canvas{
+  max-height:210px !important;
+}
+
+.cc-hidden{
+  display:none !important;
+}
+
+/* Existing pages */
+.card,
+.stat-card,
+.detection-card{
+  background:var(--cc-panel) !important;
+  border:1px solid rgba(125,211,252,.11) !important;
+  border-radius:8px !important;
+  box-shadow:0 14px 34px rgba(0,0,0,.19) !important;
+  backdrop-filter:none !important;
+}
+
+.card:hover,
+.stat-card:hover{
+  border-color:rgba(56,189,248,.22) !important;
+  box-shadow:0 16px 38px rgba(0,0,0,.22) !important;
+}
+
+.section-title{
+  color:var(--cc-text) !important;
+  font-size:18px !important;
+  text-transform:uppercase;
+  letter-spacing:.03em !important;
+}
+
+.section-sub,
+.card-title,
+.stat-label{
+  color:#73889e !important;
+}
+
+.btn{
+  border-radius:5px !important;
+  font-family:var(--mono) !important;
+  font-size:10px !important;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  box-shadow:none !important;
+}
+
+.btn-primary{
+  background:#0e7490 !important;
+}
+
+.btn-primary:hover{
+  background:#0891b2 !important;
+  transform:translateY(-1px) !important;
+  box-shadow:none !important;
+}
+
+.btn-ghost{
+  background:transparent !important;
+  border:1px solid var(--cc-border) !important;
+  color:#9bb0c5 !important;
+}
+
+.btn-ghost:hover{
+  background:rgba(56,189,248,.045) !important;
+  border-color:rgba(56,189,248,.22) !important;
+  color:#d8efff !important;
+}
+
+.btn-green{
+  background:rgba(34,197,94,.10) !important;
+  border:1px solid rgba(34,197,94,.25) !important;
+  color:#86efac !important;
+}
+
+input,
+textarea,
+select{
+  background:#050d16 !important;
+  border:1px solid var(--cc-border) !important;
+  border-radius:5px !important;
+  color:var(--cc-text) !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus{
+  border-color:#0ea5e9 !important;
+  box-shadow:0 0 0 3px rgba(14,165,233,.10) !important;
+}
+
+.upload-zone{
+  border-radius:8px !important;
+  background:rgba(56,189,248,.02) !important;
+  border-color:rgba(56,189,248,.18) !important;
+}
+
+table th{
+  background:rgba(56,189,248,.045) !important;
+  color:#7dd3fc !important;
+  font-family:var(--mono) !important;
+  font-size:9px !important;
+}
+
+#threejs-container{
+  border-radius:8px !important;
+  border-color:var(--cc-border) !important;
+}
+
+@media(max-width:1300px){
+  .cc-metrics{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+}
+
+@media(max-width:1120px){
+  .cc-command-header{
+    grid-template-columns:1fr;
+  }
+
+  .cc-operations{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+  .cc-monitor-grid{
+    grid-template-columns:1fr;
+  }
+}
+
+@media(max-width:800px){
+  .nav-links{
+    display:none !important;
+  }
+
+  .sidebar{
+    width:210px !important;
+  }
+
+  .main{
+    padding:16px !important;
+  }
+
+  .cc-command-header{
+    padding:21px;
+  }
+
+  .cc-metrics{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+
+@media(max-width:620px){
+  .app{
+    height:auto !important;
+    overflow:visible !important;
+  }
+
+  .sidebar{
+    display:none !important;
+  }
+
+  .cc-operations,
+  .cc-metrics{
+    grid-template-columns:1fr;
+  }
+
+  .cc-section-title{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -1002,115 +2517,218 @@ tr:hover td{background:rgba(34,200,255,.04) !important;}
 <div class="main">
 
   <!-- â”€â”€ DASHBOARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+  
+  
   <div id="page-dashboard" class="page-section active">
+    <div class="cc-dashboard">
 
-    <div class="fd-dashboard-shell">
-      <section class="fd-hero">
-        <div class="fd-hero-left">
-          <div class="fd-kicker"><span></span> Forensic Detection Workspace</div>
-          <h1>AI Evidence Detection Dashboard</h1>
+      <section class="cc-command-header">
+        <div class="cc-command-copy">
+          <div class="cc-classification">Restricted forensic operations</div>
+
+          <h1>
+            Forensic <span>Control Center</span>
+          </h1>
+
           <p>
-            A clean command view for monitoring forensic cases, processed evidence,
-            weapon detections, and 3D crime-scene reconstructions.
+            Central command workspace for case registration, evidence analysis,
+            AI-assisted detection and three-dimensional crime-scene reconstruction.
           </p>
-          <div class="fd-hero-actions">
-            <button class="btn btn-primary" onclick="showPage('analyze')">🔍 Analyze Evidence</button>
-            <button class="btn btn-ghost" onclick="showPage('cases'); openNewCase();">＋ Create Case</button>
-          </div>
         </div>
 
-        <div class="fd-hero-right">
-          <div class="fd-model-card">
-            <div class="fd-model-top">
-              <span class="fd-live-dot"></span>
-              <strong>Detection Engine</strong>
-            </div>
-            <div class="fd-model-name">forensic_best_v2.pt</div>
-            <div class="fd-model-tags">
-              <span>Weapon</span>
-              <span>Blood</span>
-              <span>Fingerprint</span>
-              <span>3D Scene</span>
-            </div>
+        <aside class="cc-operator-panel">
+          <div class="cc-operator-row">
+            <small>Operator</small>
+            <strong>
+              {% if request.user.get_full_name %}
+                {{ request.user.get_full_name }}
+              {% else %}
+                {{ request.user.username|default:"Investigator" }}
+              {% endif %}
+            </strong>
           </div>
-        </div>
+
+          <div class="cc-operator-row">
+            <small>Access level</small>
+            <strong>Investigator</strong>
+          </div>
+
+          <div class="cc-operator-row">
+            <small>Detection engine</small>
+            <strong class="cc-status-online">Operational</strong>
+          </div>
+
+          <div class="cc-operator-row">
+            <small>System time</small>
+            <strong>{% now "d M Y · h:i A" %}</strong>
+          </div>
+        </aside>
       </section>
 
-      <div class="fd-section-bar">
+      <div class="cc-section-title">
         <div>
-          <h2>Investigation Overview</h2>
-          <p>Important forensic detection metrics only</p>
+          <h2>Primary Operations</h2>
+          <p>Important activities available to the investigator.</p>
         </div>
-        <button class="btn btn-ghost" onclick="loadDashboard()">↻ Refresh</button>
       </div>
 
-      <div class="fd-kpi-grid">
-        <div class="fd-kpi-card fd-kpi-blue">
-          <div class="fd-kpi-icon">🗂️</div>
+      <section class="cc-operations" aria-label="Primary forensic operations">
+
+        <button class="cc-operation cc-op-blue"
+                onclick="showPage('cases'); openNewCase();">
+          <span class="cc-operation-code">OP-01</span>
+          <span class="cc-operation-icon">＋</span>
           <div>
-            <div class="fd-kpi-label">Total Cases</div>
-            <div class="fd-kpi-value" id="stat-cases">—</div>
+            <strong>Create New Case</strong>
+            <p>Register an investigation and define its case information.</p>
+            <span class="cc-operation-link">Initialize case →</span>
           </div>
+        </button>
+
+        <button class="cc-operation cc-op-green"
+                onclick="showPage('cases')">
+          <span class="cc-operation-code">OP-02</span>
+          <span class="cc-operation-icon">▣</span>
+          <div>
+            <strong>Case Registry</strong>
+            <p>Review active cases, priorities and linked evidence records.</p>
+            <span class="cc-operation-link">Open registry →</span>
+          </div>
+        </button>
+
+        <button class="cc-operation cc-op-amber"
+                onclick="showPage('analyze')">
+          <span class="cc-operation-code">OP-03</span>
+          <span class="cc-operation-icon">⌕</span>
+          <div>
+            <strong>Analyze Evidence</strong>
+            <p>Upload evidence and execute the forensic detection pipeline.</p>
+            <span class="cc-operation-link">Run analysis →</span>
+          </div>
+        </button>
+
+        <button class="cc-operation cc-op-purple"
+                onclick="showPage('reconstruct')">
+          <span class="cc-operation-code">OP-04</span>
+          <span class="cc-operation-icon">◇</span>
+          <div>
+            <strong>3D Reconstruction</strong>
+            <p>Load and inspect generated three-dimensional scene models.</p>
+            <span class="cc-operation-link">Open viewer →</span>
+          </div>
+        </button>
+
+      </section>
+
+      <div class="cc-section-title">
+        <div>
+          <h2>Operational Metrics</h2>
+          <p>Live information from the investigation database.</p>
         </div>
 
-        <div class="fd-kpi-card fd-kpi-green">
-          <div class="fd-kpi-icon">📁</div>
-          <div>
-            <div class="fd-kpi-label">Evidence Processed</div>
-            <div class="fd-kpi-value" id="stat-evidence">—</div>
-          </div>
-        </div>
-
-        <div class="fd-kpi-card fd-kpi-red">
-          <div class="fd-kpi-icon">⚠️</div>
-          <div>
-            <div class="fd-kpi-label">Weapons Detected</div>
-            <div class="fd-kpi-value" id="stat-weapons">—</div>
-          </div>
-        </div>
-
-        <div class="fd-kpi-card fd-kpi-purple">
-          <div class="fd-kpi-icon">🧊</div>
-          <div>
-            <div class="fd-kpi-label">3D Reconstructions</div>
-            <div class="fd-kpi-value" id="stat-recon">—</div>
-          </div>
-        </div>
-
-        <span id="stat-open" style="display:none">—</span>
-        <span id="stat-critical" style="display:none">—</span>
+        <button class="btn btn-ghost" onclick="loadDashboard()">
+          Refresh Data
+        </button>
       </div>
 
-      <div class="fd-dashboard-grid">
-        <div class="fd-panel fd-risk-panel">
-          <div class="fd-panel-head">
-            <div>
-              <h3>Evidence Risk Overview</h3>
-              <p>Risk level distribution from AI analysis</p>
+      <section class="cc-metrics" aria-label="Operational metrics">
+        <article class="cc-metric">
+          <div class="cc-metric-top">
+            <small>Total Cases</small>
+            <span class="cc-metric-icon">C</span>
+          </div>
+          <strong id="stat-cases">—</strong>
+        </article>
+
+        <article class="cc-metric">
+          <div class="cc-metric-top">
+            <small>Open Cases</small>
+            <span class="cc-metric-icon">O</span>
+          </div>
+          <strong id="stat-open">—</strong>
+        </article>
+
+        <article class="cc-metric">
+          <div class="cc-metric-top">
+            <small>Evidence</small>
+            <span class="cc-metric-icon">E</span>
+          </div>
+          <strong id="stat-evidence">—</strong>
+        </article>
+
+        <article class="cc-metric">
+          <div class="cc-metric-top">
+            <small>Weapons</small>
+            <span class="cc-metric-icon">W</span>
+          </div>
+          <strong id="stat-weapons">—</strong>
+        </article>
+
+        <article class="cc-metric">
+          <div class="cc-metric-top">
+            <small>Critical</small>
+            <span class="cc-metric-icon">!</span>
+          </div>
+          <strong id="stat-critical">—</strong>
+        </article>
+
+        <article class="cc-metric">
+          <div class="cc-metric-top">
+            <small>3D Scenes</small>
+            <span class="cc-metric-icon">3D</span>
+          </div>
+          <strong id="stat-recon">—</strong>
+        </article>
+      </section>
+
+      <section class="cc-monitor-grid">
+
+        <article class="cc-monitor">
+          <div class="cc-monitor-head">
+            <div class="cc-monitor-title">
+              <span class="cc-monitor-icon">⌁</span>
+              <div>
+                <h3>Recent Case Activity</h3>
+                <p>Latest records assigned to the current workspace.</p>
+              </div>
             </div>
-            <span class="fd-panel-badge">Live</span>
-          </div>
-          <div class="fd-chart-wrap">
-            <canvas id="risk-chart" height="165"></canvas>
-          </div>
-        </div>
 
-        <div class="fd-panel fd-recent-panel">
-          <div class="fd-panel-head">
-            <div>
-              <h3>Recent Cases</h3>
-              <p>Latest forensic investigation records</p>
-            </div>
-            <button class="fd-mini-btn" onclick="showPage('cases')">View All</button>
+            <button class="btn btn-ghost" onclick="showPage('cases')">
+              View Registry
+            </button>
           </div>
-          <div id="recent-cases-list" class="fd-recent-list"></div>
-        </div>
-      </div>
+
+          <div class="cc-monitor-body">
+            <div id="recent-cases-list" class="cc-recent-list"></div>
+          </div>
+        </article>
+
+        <article class="cc-monitor">
+          <div class="cc-monitor-head">
+            <div class="cc-monitor-title">
+              <span class="cc-monitor-icon">◔</span>
+              <div>
+                <h3>Evidence Risk Monitor</h3>
+                <p>Risk distribution from analyzed evidence records.</p>
+              </div>
+            </div>
+
+            <span class="cc-status-online">Live</span>
+          </div>
+
+          <div class="cc-monitor-body">
+            <div class="cc-risk-chart">
+              <canvas id="risk-chart" height="180"></canvas>
+            </div>
+          </div>
+        </article>
+
+      </section>
+
     </div>
   </div>
 
-  <!-- â”€â”€ CASES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-  <div id="page-cases" class="page-section">
+<div id="page-cases" class="page-section">
     <div class="section-header">
       <div>
         <div class="section-title">Case Management</div>

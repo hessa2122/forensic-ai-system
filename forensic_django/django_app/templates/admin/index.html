@@ -1,340 +1,1805 @@
 {% extends "admin/base_site.html" %}
-{% load i18n %}
+{% load i18n log %}
+
+{% block title %}ForensicAI Administration{% endblock %}
+{% block content_title %}{% endblock %}
 
 {% block extrastyle %}
 {{ block.super }}
+
 <style>
-  #content-main {
-    width: 100%;
-  }
-
-  #content-related {
-    display: none;
-  }
-
-  .admin-hero {
-    background:
-      linear-gradient(135deg, rgba(14, 165, 233, 0.16), rgba(37, 99, 235, 0.08)),
-      rgba(17, 24, 39, 0.96);
-    border: 1px solid rgba(56, 189, 248, 0.22);
-    border-radius: 8px;
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.30);
-    margin-bottom: 20px;
-    padding: 26px;
-  }
-
-  .admin-hero-label {
-    color: #7dd3fc;
-    font-size: 12px;
-    font-weight: 800;
-    letter-spacing: 0;
-    margin-bottom: 10px;
-    text-transform: uppercase;
-  }
-
-  .admin-hero h1 {
-    color: #f8fafc;
-    font-size: 30px;
-    line-height: 1.2;
-    margin: 0 0 8px;
-  }
-
-  .admin-hero p {
-    color: #a8b3c5;
-    font-size: 14px;
-    line-height: 1.6;
-    margin: 0;
-    max-width: 820px;
-  }
-
-  .admin-stats {
-    display: grid;
-    gap: 14px;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    margin-bottom: 20px;
-  }
-
-  .admin-stat-card,
-  .admin-panel {
-    background: rgba(17, 24, 39, 0.94);
-    border: 1px solid #2a3a52;
-    border-radius: 8px;
-    box-shadow: 0 18px 46px rgba(0, 0, 0, 0.24);
-  }
-
-  .admin-stat-card {
-    padding: 17px;
-  }
-
-  .admin-stat-card small {
-    color: #9aa7ba;
-    display: block;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0;
-    text-transform: uppercase;
-  }
-
-  .admin-stat-card strong {
-    color: #f8fafc;
-    display: block;
-    font-size: 24px;
-    line-height: 1.2;
-    margin-top: 7px;
-  }
-
-  .admin-main-grid {
-    display: grid;
-    gap: 18px;
-    grid-template-columns: minmax(0, 2fr) minmax(280px, 0.95fr);
-  }
-
-  .admin-panel {
-    padding: 20px;
-  }
-
-  .admin-panel h2 {
-    color: #f8fafc;
-    font-size: 17px;
-    margin: 0 0 14px;
-  }
-
-  .app-list-custom {
-    display: grid;
-    gap: 13px;
-  }
-
-  .app-card {
-    background: rgba(15, 23, 42, 0.74);
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    border-radius: 8px;
-    padding: 15px;
-  }
-
-  .app-card h3 {
-    color: #7dd3fc;
-    font-size: 13px;
-    font-weight: 900;
-    letter-spacing: 0;
-    margin: 0 0 12px;
-    text-transform: uppercase;
-  }
-
-  .model-links {
-    display: grid;
-    gap: 10px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .model-link,
-  .quick-link {
-    background: rgba(2, 6, 23, 0.44);
-    border: 1px solid rgba(125, 211, 252, 0.16);
-    border-radius: 8px;
-    color: #dbeafe !important;
-    text-decoration: none;
-    transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
-  }
-
-  .model-link {
-    align-items: center;
-    display: flex;
-    gap: 12px;
-    justify-content: space-between;
-    min-height: 44px;
-    padding: 10px 12px;
-  }
-
-  .model-link:hover,
-  .quick-link:hover {
-    background: rgba(14, 165, 233, 0.12);
-    border-color: rgba(125, 211, 252, 0.48);
-    transform: translateY(-1px);
-  }
-
-  .model-link span:first-child {
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .model-link span:last-child {
-    color: #93c5fd;
-    flex: 0 0 auto;
-    font-size: 12px;
-    font-weight: 800;
-    text-transform: uppercase;
-  }
-
-  .quick-link {
-    display: block;
-    margin-bottom: 10px;
-    padding: 13px 14px;
-  }
-
-  .quick-link strong {
-    color: #f8fafc;
-    display: block;
-    font-size: 13px;
-    line-height: 1.3;
-  }
-
-  .quick-link span {
-    color: #9aa7ba;
-    display: block;
-    font-size: 12px;
-    line-height: 1.4;
-    margin-top: 4px;
-  }
-
-  .system-status {
-    margin-top: 18px;
-  }
-
-  .status-row {
-    align-items: center;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.14);
-    color: #a8b3c5;
-    display: flex;
-    gap: 14px;
-    justify-content: space-between;
-    padding: 11px 0;
-  }
-
-  .status-row:last-child {
-    border-bottom: 0;
-  }
-
-  .status-row strong {
-    color: #86efac;
-    font-size: 11px;
-    letter-spacing: 0;
-    text-transform: uppercase;
-  }
-
-  @media (max-width: 1024px) {
-    .admin-stats,
-    .admin-main-grid,
-    .model-links {
-      grid-template-columns: 1fr;
+    :root {
+        --fa-bg: #050b14;
+        --fa-bg-soft: #091321;
+        --fa-surface: rgba(13, 24, 40, 0.92);
+        --fa-surface-soft: rgba(15, 30, 49, 0.76);
+        --fa-border: rgba(148, 163, 184, 0.15);
+        --fa-border-blue: rgba(56, 189, 248, 0.28);
+        --fa-primary: #38bdf8;
+        --fa-primary-dark: #2563eb;
+        --fa-purple: #818cf8;
+        --fa-green: #22c55e;
+        --fa-yellow: #facc15;
+        --fa-text: #f8fafc;
+        --fa-muted: #94a3b8;
+        --fa-shadow: 0 24px 65px rgba(0, 0, 0, 0.34);
     }
-  }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        background:
+            radial-gradient(
+                circle at 85% 7%,
+                rgba(37, 99, 235, 0.18),
+                transparent 25%
+            ),
+            radial-gradient(
+                circle at 8% 95%,
+                rgba(14, 165, 233, 0.09),
+                transparent 25%
+            ),
+            linear-gradient(135deg, #030712, #07111e 48%, #091523);
+        background-attachment: fixed;
+    }
+
+    body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        opacity: 0.22;
+        background-image:
+            linear-gradient(
+                rgba(56, 189, 248, 0.035) 1px,
+                transparent 1px
+            ),
+            linear-gradient(
+                90deg,
+                rgba(56, 189, 248, 0.035) 1px,
+                transparent 1px
+            );
+        background-size: 46px 46px;
+    }
+
+    #container {
+        background: transparent;
+    }
+
+    #content {
+        padding: 30px 34px 45px;
+    }
+
+    #content-main {
+        width: 100%;
+    }
+
+    #content-related {
+        display: none;
+    }
+
+    .breadcrumbs {
+        border-bottom: 1px solid var(--fa-border);
+        background: rgba(3, 7, 18, 0.78);
+        backdrop-filter: blur(14px);
+    }
+
+    .forensic-admin-dashboard {
+        width: 100%;
+        max-width: 1550px;
+        margin: 0 auto;
+        color: var(--fa-text);
+    }
+
+    /* Hero */
+
+    .admin-hero {
+        position: relative;
+        overflow: hidden;
+        min-height: 210px;
+        margin-bottom: 22px;
+        padding: 34px 36px;
+
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 30px;
+
+        border: 1px solid var(--fa-border-blue);
+        border-radius: 22px;
+
+        background:
+            linear-gradient(
+                115deg,
+                rgba(14, 165, 233, 0.17),
+                rgba(37, 99, 235, 0.10) 45%,
+                rgba(129, 140, 248, 0.06)
+            ),
+            rgba(9, 19, 33, 0.92);
+
+        box-shadow:
+            0 30px 75px rgba(0, 0, 0, 0.40),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+        backdrop-filter: blur(18px);
+        animation: adminFadeUp 0.65s ease both;
+    }
+
+    .admin-hero::before {
+        content: "";
+        position: absolute;
+        top: -145px;
+        right: -70px;
+        width: 360px;
+        height: 360px;
+        border-radius: 50%;
+        border: 55px solid rgba(56, 189, 248, 0.05);
+    }
+
+    .admin-hero::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        right: 24%;
+        width: 1px;
+        height: 100%;
+        opacity: 0.45;
+        background:
+            linear-gradient(
+                transparent,
+                rgba(56, 189, 248, 0.32),
+                transparent
+            );
+    }
+
+    .hero-content {
+        position: relative;
+        z-index: 2;
+        max-width: 870px;
+    }
+
+    .hero-label {
+        width: fit-content;
+        margin-bottom: 15px;
+        padding: 8px 13px;
+
+        display: flex;
+        align-items: center;
+        gap: 9px;
+
+        color: #bae6fd;
+        border: 1px solid rgba(56, 189, 248, 0.24);
+        border-radius: 30px;
+        background: rgba(14, 165, 233, 0.09);
+
+        font-size: 10px;
+        font-weight: 850;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+    }
+
+    .hero-label-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--fa-green);
+        box-shadow: 0 0 11px rgba(34, 197, 94, 0.90);
+        animation: statusPulse 1.8s infinite;
+    }
+
+    .admin-hero h1 {
+        margin: 0 0 12px;
+        color: var(--fa-text);
+        font-size: clamp(29px, 3.3vw, 43px);
+        font-weight: 780;
+        line-height: 1.08;
+        letter-spacing: -1.25px;
+    }
+
+    .admin-hero h1 span {
+        color: transparent;
+        background: linear-gradient(
+            90deg,
+            var(--fa-primary),
+            #60a5fa,
+            var(--fa-purple)
+        );
+        background-clip: text;
+        -webkit-background-clip: text;
+    }
+
+    .admin-hero p {
+        max-width: 790px;
+        margin: 0;
+        color: #a9b8cc;
+        font-size: 14px;
+        line-height: 1.75;
+    }
+
+    .hero-side {
+        position: relative;
+        z-index: 2;
+        min-width: 245px;
+        display: grid;
+        gap: 12px;
+    }
+
+    .hero-status-card {
+        padding: 16px 18px;
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        border-radius: 15px;
+        background: rgba(2, 6, 23, 0.42);
+        backdrop-filter: blur(12px);
+    }
+
+    .hero-status-card small {
+        display: block;
+        margin-bottom: 7px;
+        color: var(--fa-muted);
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: 0.9px;
+        text-transform: uppercase;
+    }
+
+    .hero-status-card strong {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        color: var(--fa-text);
+        font-size: 13px;
+    }
+
+    .hero-status-card span {
+        color: #cbd5e1;
+        font-size: 11px;
+    }
+
+    .live-dot {
+        width: 9px;
+        height: 9px;
+        flex: 0 0 auto;
+        border-radius: 50%;
+        background: var(--fa-green);
+        box-shadow: 0 0 11px rgba(34, 197, 94, 0.86);
+    }
+
+    /* Statistics */
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 16px;
+        margin-bottom: 23px;
+    }
+
+    .stat-card {
+        position: relative;
+        overflow: hidden;
+        min-height: 130px;
+        padding: 20px;
+
+        border: 1px solid var(--fa-border);
+        border-radius: 17px;
+        background:
+            linear-gradient(
+                145deg,
+                rgba(15, 30, 49, 0.88),
+                rgba(9, 19, 33, 0.92)
+            );
+
+        box-shadow: 0 16px 42px rgba(0, 0, 0, 0.23);
+        transition:
+            transform 180ms ease,
+            border-color 180ms ease,
+            box-shadow 180ms ease;
+        animation: adminFadeUp 0.7s ease both;
+    }
+
+    .stat-card:nth-child(2) {
+        animation-delay: 0.05s;
+    }
+
+    .stat-card:nth-child(3) {
+        animation-delay: 0.1s;
+    }
+
+    .stat-card:nth-child(4) {
+        animation-delay: 0.15s;
+    }
+
+    .stat-card::after {
+        content: "";
+        position: absolute;
+        right: -30px;
+        bottom: -38px;
+        width: 105px;
+        height: 105px;
+        border-radius: 50%;
+        background: rgba(56, 189, 248, 0.06);
+    }
+
+    .stat-card:hover {
+        transform: translateY(-5px);
+        border-color: rgba(56, 189, 248, 0.38);
+        box-shadow: 0 22px 52px rgba(0, 0, 0, 0.30);
+    }
+
+    .stat-header {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .stat-header small {
+        color: var(--fa-muted);
+        font-size: 10px;
+        font-weight: 850;
+        letter-spacing: 0.9px;
+        text-transform: uppercase;
+    }
+
+    .stat-icon {
+        width: 39px;
+        height: 39px;
+        display: grid;
+        place-items: center;
+        color: var(--fa-primary);
+        border: 1px solid rgba(56, 189, 248, 0.20);
+        border-radius: 11px;
+        background: rgba(56, 189, 248, 0.09);
+    }
+
+    .stat-icon svg {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.8;
+    }
+
+    .stat-card strong {
+        position: relative;
+        z-index: 2;
+        display: block;
+        margin-top: 15px;
+        color: var(--fa-text);
+        font-size: 24px;
+        font-weight: 760;
+        line-height: 1.1;
+    }
+
+    .stat-card p {
+        position: relative;
+        z-index: 2;
+        margin: 7px 0 0;
+        color: #64748b;
+        font-size: 11px;
+    }
+
+    .stat-accent-blue {
+        border-top: 2px solid #38bdf8;
+    }
+
+    .stat-accent-green {
+        border-top: 2px solid #22c55e;
+    }
+
+    .stat-accent-purple {
+        border-top: 2px solid #818cf8;
+    }
+
+    .stat-accent-yellow {
+        border-top: 2px solid #facc15;
+    }
+
+    /* Main dashboard layout */
+
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.85fr) minmax(310px, 0.72fr);
+        gap: 21px;
+        align-items: start;
+    }
+
+    .dashboard-panel {
+        overflow: hidden;
+        border: 1px solid var(--fa-border);
+        border-radius: 19px;
+        background: var(--fa-surface);
+        box-shadow: var(--fa-shadow);
+        backdrop-filter: blur(14px);
+        animation: adminFadeUp 0.75s 0.12s ease both;
+    }
+
+    .panel-header {
+        min-height: 82px;
+        padding: 19px 22px;
+
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+
+        border-bottom: 1px solid var(--fa-border);
+        background:
+            linear-gradient(
+                90deg,
+                rgba(56, 189, 248, 0.04),
+                transparent
+            );
+    }
+
+    .panel-title {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+    }
+
+    .panel-title-icon {
+        width: 42px;
+        height: 42px;
+        flex: 0 0 auto;
+        display: grid;
+        place-items: center;
+        color: var(--fa-primary);
+        border: 1px solid rgba(56, 189, 248, 0.20);
+        border-radius: 12px;
+        background: rgba(56, 189, 248, 0.08);
+    }
+
+    .panel-title-icon svg {
+        width: 20px;
+        height: 20px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.8;
+    }
+
+    .panel-title h2 {
+        margin: 0 0 4px;
+        color: var(--fa-text);
+        font-size: 17px;
+        font-weight: 760;
+    }
+
+    .panel-title p {
+        margin: 0;
+        color: var(--fa-muted);
+        font-size: 11px;
+        line-height: 1.4;
+    }
+
+    .panel-badge {
+        flex: 0 0 auto;
+        padding: 7px 11px;
+        color: #bae6fd;
+        border: 1px solid rgba(56, 189, 248, 0.18);
+        border-radius: 30px;
+        background: rgba(56, 189, 248, 0.07);
+        font-size: 9px;
+        font-weight: 850;
+        letter-spacing: 0.7px;
+        text-transform: uppercase;
+    }
+
+    .panel-content {
+        padding: 20px;
+    }
+
+    /* Django application cards */
+
+    .application-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+    }
+
+    .application-card {
+        overflow: hidden;
+        border: 1px solid rgba(148, 163, 184, 0.13);
+        border-radius: 15px;
+        background:
+            linear-gradient(
+                145deg,
+                rgba(15, 30, 49, 0.74),
+                rgba(8, 17, 30, 0.78)
+            );
+        transition:
+            transform 180ms ease,
+            border-color 180ms ease;
+    }
+
+    .application-card:hover {
+        transform: translateY(-3px);
+        border-color: rgba(56, 189, 248, 0.30);
+    }
+
+    .application-header {
+        padding: 15px 16px;
+
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 13px;
+
+        border-bottom: 1px solid rgba(148, 163, 184, 0.11);
+        background: rgba(2, 6, 23, 0.20);
+    }
+
+    .application-name {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+    }
+
+    .application-letter {
+        width: 38px;
+        height: 38px;
+        flex: 0 0 auto;
+        display: grid;
+        place-items: center;
+
+        color: #bae6fd;
+        border: 1px solid rgba(56, 189, 248, 0.22);
+        border-radius: 11px;
+        background:
+            linear-gradient(
+                145deg,
+                rgba(56, 189, 248, 0.12),
+                rgba(37, 99, 235, 0.06)
+            );
+
+        font-size: 14px;
+        font-weight: 850;
+        text-transform: uppercase;
+    }
+
+    .application-header h3 {
+        margin: 0 0 4px;
+        color: var(--fa-text);
+        font-size: 13px;
+        font-weight: 800;
+    }
+
+    .application-header small {
+        color: var(--fa-muted);
+        font-size: 10px;
+    }
+
+    .table-count {
+        color: #64748b;
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    .model-list {
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+    }
+
+    .model-link {
+        min-height: 47px;
+        padding: 10px 12px;
+
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+
+        color: #dbeafe !important;
+        border: 1px solid rgba(148, 163, 184, 0.11);
+        border-radius: 11px;
+        background: rgba(2, 6, 23, 0.29);
+        text-decoration: none !important;
+
+        transition:
+            transform 160ms ease,
+            border-color 160ms ease,
+            background 160ms ease;
+    }
+
+    .model-link:hover {
+        transform: translateX(4px);
+        border-color: rgba(56, 189, 248, 0.34);
+        background: rgba(14, 165, 233, 0.09);
+    }
+
+    .model-left {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .model-dot {
+        width: 7px;
+        height: 7px;
+        flex: 0 0 auto;
+        border-radius: 50%;
+        background: var(--fa-primary);
+        box-shadow: 0 0 7px rgba(56, 189, 248, 0.65);
+    }
+
+    .model-name {
+        min-width: 0;
+        color: #dbeafe;
+        font-size: 12px;
+        font-weight: 650;
+        overflow-wrap: anywhere;
+    }
+
+    .model-action {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        color: #7dd3fc;
+        font-size: 9px;
+        font-weight: 850;
+        letter-spacing: 0.55px;
+        text-transform: uppercase;
+    }
+
+    .model-arrow {
+        font-size: 17px;
+        line-height: 1;
+    }
+
+    .model-link.locked {
+        opacity: 0.48;
+        cursor: not-allowed;
+    }
+
+    .model-link.locked:hover {
+        transform: none;
+        border-color: rgba(148, 163, 184, 0.11);
+        background: rgba(2, 6, 23, 0.29);
+    }
+
+    /* Quick actions */
+
+    .side-panel {
+        position: sticky;
+        top: 24px;
+    }
+
+    .quick-action-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .quick-action {
+        position: relative;
+        overflow: hidden;
+        min-height: 70px;
+        padding: 13px;
+
+        display: flex;
+        align-items: center;
+        gap: 13px;
+
+        color: inherit !important;
+        border: 1px solid rgba(148, 163, 184, 0.12);
+        border-radius: 13px;
+        background: rgba(2, 6, 23, 0.29);
+        text-decoration: none !important;
+
+        transition:
+            transform 170ms ease,
+            border-color 170ms ease,
+            background 170ms ease;
+    }
+
+    .quick-action::after {
+        content: "›";
+        position: absolute;
+        right: 14px;
+        color: #64748b;
+        font-size: 21px;
+        transition:
+            transform 170ms ease,
+            color 170ms ease;
+    }
+
+    .quick-action:hover {
+        transform: translateY(-3px);
+        border-color: rgba(56, 189, 248, 0.34);
+        background: rgba(14, 165, 233, 0.08);
+    }
+
+    .quick-action:hover::after {
+        color: var(--fa-primary);
+        transform: translateX(3px);
+    }
+
+    .quick-icon {
+        width: 42px;
+        height: 42px;
+        flex: 0 0 auto;
+        display: grid;
+        place-items: center;
+
+        color: var(--fa-primary);
+        border: 1px solid rgba(56, 189, 248, 0.19);
+        border-radius: 12px;
+        background: rgba(56, 189, 248, 0.08);
+    }
+
+    .quick-icon svg {
+        width: 19px;
+        height: 19px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.8;
+    }
+
+    .quick-text {
+        min-width: 0;
+        padding-right: 20px;
+    }
+
+    .quick-text strong {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--fa-text);
+        font-size: 12px;
+        line-height: 1.25;
+    }
+
+    .quick-text span {
+        display: block;
+        color: var(--fa-muted);
+        font-size: 10px;
+        line-height: 1.45;
+    }
+
+    /* Status section */
+
+    .system-status {
+        margin-top: 19px;
+        padding-top: 18px;
+        border-top: 1px solid var(--fa-border);
+    }
+
+    .system-status-title {
+        margin: 0 0 10px;
+        color: var(--fa-text);
+        font-size: 13px;
+        font-weight: 760;
+    }
+
+    .status-row {
+        min-height: 42px;
+        padding: 9px 0;
+
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 15px;
+
+        border-bottom: 1px solid rgba(148, 163, 184, 0.09);
+        color: #a9b7c9;
+        font-size: 11px;
+    }
+
+    .status-row:last-child {
+        border-bottom: 0;
+    }
+
+    .status-value {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+
+        color: #86efac;
+        font-size: 9px;
+        font-weight: 850;
+        letter-spacing: 0.7px;
+        text-transform: uppercase;
+    }
+
+    .status-value::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--fa-green);
+        box-shadow: 0 0 8px rgba(34, 197, 94, 0.80);
+    }
+
+    .admin-session {
+        margin-top: 16px;
+        padding: 14px;
+        border: 1px solid rgba(129, 140, 248, 0.16);
+        border-radius: 13px;
+        background:
+            linear-gradient(
+                135deg,
+                rgba(129, 140, 248, 0.08),
+                rgba(37, 99, 235, 0.04)
+            );
+    }
+
+    .admin-session small {
+        display: block;
+        margin-bottom: 5px;
+        color: #818cf8;
+        font-size: 9px;
+        font-weight: 850;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+    }
+
+    .admin-session strong {
+        display: block;
+        color: var(--fa-text);
+        font-size: 11px;
+    }
+
+    .admin-session span {
+        display: block;
+        margin-top: 4px;
+        color: var(--fa-muted);
+        font-size: 10px;
+    }
+
+    .empty-message {
+        margin: 0;
+        padding: 30px;
+        color: var(--fa-muted);
+        text-align: center;
+    }
+
+
+    /* Important admin activities */
+
+    .important-activities {
+        margin-bottom: 23px;
+        padding: 22px;
+
+        border: 1px solid var(--fa-border);
+        border-radius: 19px;
+        background: var(--fa-surface);
+        box-shadow: var(--fa-shadow);
+        backdrop-filter: blur(14px);
+        animation: adminFadeUp 0.7s ease both;
+    }
+
+    .section-heading-row {
+        margin-bottom: 17px;
+
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 20px;
+    }
+
+    .section-kicker {
+        display: block;
+        margin-bottom: 5px;
+        color: var(--fa-primary);
+        font-size: 9px;
+        font-weight: 850;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+
+    .section-heading-row h2 {
+        margin: 0 0 5px;
+        color: var(--fa-text);
+        font-size: 18px;
+        font-weight: 780;
+    }
+
+    .section-heading-row p {
+        margin: 0;
+        color: var(--fa-muted);
+        font-size: 11px;
+        line-height: 1.45;
+    }
+
+    .view-all-link,
+    .panel-header-link {
+        flex: 0 0 auto;
+        color: #7dd3fc !important;
+        text-decoration: none !important;
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .view-all-link {
+        padding: 8px 11px;
+        border: 1px solid rgba(56, 189, 248, 0.18);
+        border-radius: 999px;
+        background: rgba(56, 189, 248, 0.07);
+    }
+
+    .view-all-link span {
+        margin-left: 5px;
+        font-size: 16px;
+        line-height: 0;
+    }
+
+    .activity-shortcut-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 13px;
+    }
+
+    .activity-shortcut {
+        position: relative;
+        min-height: 130px;
+        padding: 16px;
+
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+
+        color: inherit !important;
+        border: 1px solid rgba(148, 163, 184, 0.13);
+        border-radius: 15px;
+        background:
+            linear-gradient(
+                145deg,
+                rgba(15, 30, 49, 0.78),
+                rgba(8, 17, 30, 0.84)
+            );
+        text-decoration: none !important;
+
+        transition:
+            transform 180ms ease,
+            border-color 180ms ease,
+            box-shadow 180ms ease;
+    }
+
+    .activity-shortcut::before {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 3px;
+        border-radius: 15px 0 0 15px;
+        background: var(--shortcut-accent, var(--fa-primary));
+    }
+
+    .activity-shortcut:hover {
+        transform: translateY(-4px);
+        border-color: rgba(56, 189, 248, 0.34);
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.24);
+    }
+
+    .activity-users {
+        --shortcut-accent: #38bdf8;
+    }
+
+    .activity-data {
+        --shortcut-accent: #818cf8;
+    }
+
+    .activity-audit {
+        --shortcut-accent: #22c55e;
+    }
+
+    .activity-permissions {
+        --shortcut-accent: #facc15;
+    }
+
+    .activity-shortcut-icon {
+        width: 42px;
+        height: 42px;
+        flex: 0 0 auto;
+        display: grid;
+        place-items: center;
+
+        color: var(--shortcut-accent, var(--fa-primary));
+        border: 1px solid rgba(56, 189, 248, 0.20);
+        border-radius: 12px;
+        background: rgba(56, 189, 248, 0.08);
+    }
+
+    .activity-shortcut-icon svg {
+        width: 20px;
+        height: 20px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+    }
+
+    .activity-shortcut-copy {
+        min-width: 0;
+        padding-right: 16px;
+    }
+
+    .activity-shortcut-copy small {
+        display: block;
+        margin-bottom: 7px;
+        color: var(--fa-muted);
+        font-size: 8px;
+        font-weight: 850;
+        letter-spacing: 0.75px;
+        text-transform: uppercase;
+    }
+
+    .activity-shortcut-copy strong {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--fa-text);
+        font-size: 12px;
+        line-height: 1.3;
+    }
+
+    .activity-shortcut-copy > span {
+        display: block;
+        color: #7f8da1;
+        font-size: 9px;
+        line-height: 1.45;
+    }
+
+    .activity-shortcut-arrow {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        color: #64748b;
+        font-size: 21px;
+        transition: transform 170ms ease, color 170ms ease;
+    }
+
+    .activity-shortcut:hover .activity-shortcut-arrow {
+        color: var(--fa-primary);
+        transform: translateX(3px);
+    }
+
+    /* Recent activity feed */
+
+    .recent-activity-list {
+        display: grid;
+        gap: 9px;
+    }
+
+    .recent-activity-item {
+        position: relative;
+        min-height: 66px;
+        padding: 12px;
+
+        display: flex;
+        align-items: flex-start;
+        gap: 11px;
+
+        border: 1px solid rgba(148, 163, 184, 0.11);
+        border-radius: 12px;
+        background: rgba(2, 6, 23, 0.29);
+    }
+
+    .recent-activity-marker {
+        width: 9px;
+        height: 9px;
+        flex: 0 0 auto;
+        margin-top: 5px;
+        border: 2px solid rgba(255, 255, 255, 0.16);
+        border-radius: 50%;
+        background: #60a5fa;
+        box-shadow: 0 0 9px rgba(96, 165, 250, 0.56);
+    }
+
+    .activity-added .recent-activity-marker {
+        background: #22c55e;
+        box-shadow: 0 0 9px rgba(34, 197, 94, 0.56);
+    }
+
+    .activity-deleted .recent-activity-marker {
+        background: #fb7185;
+        box-shadow: 0 0 9px rgba(251, 113, 133, 0.50);
+    }
+
+    .recent-activity-content {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .recent-activity-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .recent-activity-top strong,
+    .recent-activity-top strong a {
+        min-width: 0;
+        color: #e2e8f0 !important;
+        font-size: 11px;
+        line-height: 1.35;
+        text-decoration: none !important;
+        overflow-wrap: anywhere;
+    }
+
+    .recent-activity-top strong a:hover {
+        color: var(--fa-primary) !important;
+    }
+
+    .recent-activity-type {
+        flex: 0 0 auto;
+        padding: 4px 7px;
+        color: #93c5fd;
+        border: 1px solid rgba(96, 165, 250, 0.18);
+        border-radius: 999px;
+        background: rgba(96, 165, 250, 0.07);
+        font-size: 7px;
+        font-weight: 850;
+        letter-spacing: 0.45px;
+        text-transform: uppercase;
+    }
+
+    .activity-added .recent-activity-type {
+        color: #86efac;
+        border-color: rgba(34, 197, 94, 0.17);
+        background: rgba(34, 197, 94, 0.07);
+    }
+
+    .activity-deleted .recent-activity-type {
+        color: #fda4af;
+        border-color: rgba(251, 113, 133, 0.17);
+        background: rgba(251, 113, 133, 0.07);
+    }
+
+    .recent-activity-meta {
+        margin-top: 6px;
+
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+
+        color: #64748b;
+        font-size: 8px;
+    }
+
+    .recent-activity-meta time {
+        flex: 0 0 auto;
+    }
+
+    .activity-empty-state {
+        padding: 28px 18px;
+        text-align: center;
+        border: 1px dashed rgba(148, 163, 184, 0.15);
+        border-radius: 13px;
+        background: rgba(2, 6, 23, 0.20);
+    }
+
+    .activity-empty-icon {
+        width: 45px;
+        height: 45px;
+        margin: 0 auto 11px;
+        display: grid;
+        place-items: center;
+
+        color: var(--fa-primary);
+        border: 1px solid rgba(56, 189, 248, 0.18);
+        border-radius: 13px;
+        background: rgba(56, 189, 248, 0.07);
+    }
+
+    .activity-empty-icon svg {
+        width: 20px;
+        height: 20px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+    }
+
+    .activity-empty-state strong {
+        display: block;
+        color: var(--fa-text);
+        font-size: 11px;
+    }
+
+    .activity-empty-state p {
+        margin: 6px 0 0;
+        color: var(--fa-muted);
+        font-size: 9px;
+    }
+
+    .compact-actions {
+        margin-top: 17px;
+        padding-top: 15px;
+        display: grid;
+        gap: 7px;
+        border-top: 1px solid var(--fa-border);
+    }
+
+    .compact-action-link {
+        min-height: 38px;
+        padding: 8px 10px;
+
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+
+        color: #a9b7c9 !important;
+        border-radius: 9px;
+        background: rgba(2, 6, 23, 0.24);
+        text-decoration: none !important;
+        font-size: 9px;
+    }
+
+    .compact-action-link:hover {
+        color: #e2e8f0 !important;
+        background: rgba(14, 165, 233, 0.08);
+    }
+
+    .compact-action-link strong {
+        color: #7dd3fc;
+        font-size: 8px;
+        text-transform: uppercase;
+    }
+
+    @keyframes adminFadeUp {
+        from {
+            opacity: 0;
+            transform: translateY(18px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes statusPulse {
+        0%,
+        100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        50% {
+            opacity: 0.55;
+            transform: scale(0.82);
+        }
+    }
+
+
+    @media (max-width: 1180px) {
+        .activity-shortcut-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 700px) {
+        .section-heading-row {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .activity-shortcut-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 1180px) {
+        .stats-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .dashboard-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .side-panel {
+            position: static;
+        }
+    }
+
+    @media (max-width: 850px) {
+        #content {
+            padding: 20px 16px 36px;
+        }
+
+        .admin-hero {
+            align-items: flex-start;
+            flex-direction: column;
+            padding: 27px;
+        }
+
+        .admin-hero::after {
+            display: none;
+        }
+
+        .hero-side {
+            width: 100%;
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .application-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 560px) {
+        .admin-hero {
+            padding: 22px;
+            border-radius: 17px;
+        }
+
+        .stats-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .hero-side {
+            grid-template-columns: 1fr;
+        }
+
+        .panel-header {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .panel-content {
+            padding: 15px;
+        }
+
+        .application-header {
+            align-items: flex-start;
+        }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<section class="admin-hero">
-  <div class="admin-hero-label">Secure Administration Workspace</div>
-  <h1>ForensicAI Administration Panel</h1>
-  <p>
-    Manage user access, forensic cases, evidence records, reconstruction data,
-    reports, and audit activity from one focused admin console.
-  </p>
-</section>
 
-<section class="admin-stats" aria-label="System status summary">
-  <div class="admin-stat-card">
-    <small>Access Mode</small>
-    <strong>Admin</strong>
-  </div>
-  <div class="admin-stat-card">
-    <small>System Status</small>
-    <strong>Online</strong>
-  </div>
-  <div class="admin-stat-card">
-    <small>Security</small>
-    <strong>Active</strong>
-  </div>
-  <div class="admin-stat-card">
-    <small>AI Module</small>
-    <strong>Ready</strong>
-  </div>
-</section>
+<div class="forensic-admin-dashboard">
 
-<div class="admin-main-grid">
-  <section class="admin-panel">
-    <h2>Database Management</h2>
+    <section class="admin-hero">
 
-    <div class="app-list-custom">
-      {% if app_list %}
-        {% for app in app_list %}
-          <article class="app-card">
-            <h3>{{ app.name }}</h3>
-            <div class="model-links">
-              {% for model in app.models %}
-                {% if model.object_name == "AuditLog" %}
-                  <a href="{% url 'admin_audit_log' %}" class="model-link">
-                    <span>{{ model.name }}</span>
-                    <span>View</span>
-                  </a>
-                {% elif model.object_name == "UserProfile" %}
-                  <a href="{% url 'admin_users' %}" class="model-link">
-                    <span>{{ model.name }}</span>
-                    <span>Manage</span>
-                  </a>
-                {% elif model.admin_url %}
-                  <a href="{{ model.admin_url }}" class="model-link">
-                    <span>{{ model.name }}</span>
-                    <span>Open</span>
-                  </a>
-                {% else %}
-                  <div class="model-link">
-                    <span>{{ model.name }}</span>
-                    <span>Locked</span>
-                  </div>
-                {% endif %}
-              {% endfor %}
+        <div class="hero-content">
+
+            <div class="hero-label">
+                <span class="hero-label-dot"></span>
+                Secure administration workspace
             </div>
-          </article>
-        {% endfor %}
-      {% else %}
-        <p>No admin modules are available for this account.</p>
-      {% endif %}
+
+            <h1>
+                Welcome back,
+                <span>
+                    {% firstof request.user.get_full_name request.user.username "Administrator" %}
+                </span>
+            </h1>
+
+            <p>
+                Control investigator accounts, forensic cases, evidence data,
+                AI analysis records, reports, permissions and audit activity
+                from one secure administration workspace.
+            </p>
+
+        </div>
+
+        <div class="hero-side">
+
+            <div class="hero-status-card">
+                <small>Platform status</small>
+
+                <strong>
+                    <span class="live-dot"></span>
+                    All systems operational
+                </strong>
+            </div>
+
+            <div class="hero-status-card">
+                <small>Current session</small>
+                <strong>{{ request.user.username }}</strong>
+                <span>{% now "d M Y, h:i A" %}</span>
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <section class="important-activities" aria-labelledby="important-activities-title">
+
+        <div class="section-heading-row">
+            <div>
+                <span class="section-kicker">Priority controls</span>
+                <h2 id="important-activities-title">Important Admin Activities</h2>
+                <p>Open the administration tasks that require regular attention.</p>
+            </div>
+
+            <a href="{% url 'admin_audit_log' %}" class="view-all-link">
+                View full audit log
+                <span>›</span>
+            </a>
+        </div>
+
+        <div class="activity-shortcut-grid">
+
+            <a href="{% url 'admin_users' %}" class="activity-shortcut activity-users">
+                <span class="activity-shortcut-icon">
+                    <svg viewBox="0 0 24 24">
+                        <circle cx="9" cy="8" r="4"/>
+                        <path d="M3 21v-2c0-3 2.7-5 6-5s6 2 6 5v2"/>
+                        <path d="M17 8h4M19 6v4"/>
+                    </svg>
+                </span>
+
+                <span class="activity-shortcut-copy">
+                    <small>Account control</small>
+                    <strong>Review User Approvals</strong>
+                    <span>Approve investigators and manage assigned roles.</span>
+                </span>
+
+                <span class="activity-shortcut-arrow">›</span>
+            </a>
+
+            <a href="#database-management" class="activity-shortcut activity-data">
+                <span class="activity-shortcut-icon">
+                    <svg viewBox="0 0 24 24">
+                        <ellipse cx="12" cy="5" rx="8" ry="3"/>
+                        <path d="M4 5v7c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/>
+                        <path d="M4 12v7c0 1.7 3.6 3 8 3s8-1.3 8-3v-7"/>
+                    </svg>
+                </span>
+
+                <span class="activity-shortcut-copy">
+                    <small>Project records</small>
+                    <strong>Manage Forensic Data</strong>
+                    <span>Open cases, evidence, reports and analysis records.</span>
+                </span>
+
+                <span class="activity-shortcut-arrow">›</span>
+            </a>
+
+            <a href="{% url 'admin_audit_log' %}" class="activity-shortcut activity-audit">
+                <span class="activity-shortcut-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M6 3h12v18H6z"/>
+                        <path d="M9 7h6M9 11h6M9 15h4"/>
+                    </svg>
+                </span>
+
+                <span class="activity-shortcut-copy">
+                    <small>Security tracking</small>
+                    <strong>Inspect Audit Activity</strong>
+                    <span>Review logins, uploads, updates and report actions.</span>
+                </span>
+
+                <span class="activity-shortcut-arrow">›</span>
+            </a>
+
+            <a href="{% url 'admin:auth_group_changelist' %}" class="activity-shortcut activity-permissions">
+                <span class="activity-shortcut-icon">
+                    <svg viewBox="0 0 24 24">
+                        <circle cx="8" cy="8" r="3"/>
+                        <circle cx="16" cy="8" r="3"/>
+                        <path d="M2 20v-2c0-2.5 2.3-4 6-4s6 1.5 6 4v2"/>
+                        <path d="M14 14c4 0 8 1 8 5v1"/>
+                    </svg>
+                </span>
+
+                <span class="activity-shortcut-copy">
+                    <small>Access security</small>
+                    <strong>Groups & Permissions</strong>
+                    <span>Control model access and administrator privileges.</span>
+                </span>
+
+                <span class="activity-shortcut-arrow">›</span>
+            </a>
+
+        </div>
+
+    </section>
+
+    <div class="dashboard-grid">
+
+        <section class="dashboard-panel" id="database-management">
+
+            <div class="panel-header">
+
+                <div class="panel-title">
+
+                    <span class="panel-title-icon">
+                        <svg viewBox="0 0 24 24">
+                            <rect x="3" y="4" width="7" height="7" rx="1"/>
+                            <rect x="14" y="4" width="7" height="7" rx="1"/>
+                            <rect x="3" y="15" width="7" height="6" rx="1"/>
+                            <rect x="14" y="15" width="7" height="6" rx="1"/>
+                        </svg>
+                    </span>
+
+                    <div>
+                        <h2>Database Management</h2>
+                        <p>Access and manage registered ForensicAI records.</p>
+                    </div>
+
+                </div>
+
+                <span class="panel-badge">Admin Database</span>
+
+            </div>
+
+            <div class="panel-content">
+
+                {% if app_list %}
+
+                    <div class="application-grid">
+
+                        {% for app in app_list %}
+
+                            <article class="application-card">
+
+                                <div class="application-header">
+
+                                    <div class="application-name">
+
+                                        <div class="application-letter">
+                                            {{ app.name|slice:":1" }}
+                                        </div>
+
+                                        <div>
+                                            <h3>{{ app.name }}</h3>
+
+                                            <small>
+                                                Database application
+                                            </small>
+                                        </div>
+
+                                    </div>
+
+                                    <span class="table-count">
+                                        {{ app.models|length }}
+                                        table{{ app.models|length|pluralize }}
+                                    </span>
+
+                                </div>
+
+                                <div class="model-list">
+
+                                    {% for model in app.models %}
+
+                                        {% if model.object_name == "AuditLog" %}
+
+                                            <a href="{% url 'admin_audit_log' %}"
+                                               class="model-link">
+
+                                                <span class="model-left">
+                                                    <span class="model-dot"></span>
+
+                                                    <span class="model-name">
+                                                        {{ model.name }}
+                                                    </span>
+                                                </span>
+
+                                                <span class="model-action">
+                                                    View
+                                                    <span class="model-arrow">›</span>
+                                                </span>
+
+                                            </a>
+
+                                        {% elif model.object_name == "UserProfile" %}
+
+                                            <a href="{% url 'admin_users' %}"
+                                               class="model-link">
+
+                                                <span class="model-left">
+                                                    <span class="model-dot"></span>
+
+                                                    <span class="model-name">
+                                                        {{ model.name }}
+                                                    </span>
+                                                </span>
+
+                                                <span class="model-action">
+                                                    Manage
+                                                    <span class="model-arrow">›</span>
+                                                </span>
+
+                                            </a>
+
+                                        {% elif model.admin_url %}
+
+                                            <a href="{{ model.admin_url }}"
+                                               class="model-link">
+
+                                                <span class="model-left">
+                                                    <span class="model-dot"></span>
+
+                                                    <span class="model-name">
+                                                        {{ model.name }}
+                                                    </span>
+                                                </span>
+
+                                                <span class="model-action">
+                                                    Open
+                                                    <span class="model-arrow">›</span>
+                                                </span>
+
+                                            </a>
+
+                                        {% else %}
+
+                                            <div class="model-link locked">
+
+                                                <span class="model-left">
+                                                    <span class="model-dot"></span>
+
+                                                    <span class="model-name">
+                                                        {{ model.name }}
+                                                    </span>
+                                                </span>
+
+                                                <span class="model-action">
+                                                    Locked
+                                                </span>
+
+                                            </div>
+
+                                        {% endif %}
+
+                                    {% endfor %}
+
+                                </div>
+
+                            </article>
+
+                        {% endfor %}
+
+                    </div>
+
+                {% else %}
+
+                    <p class="empty-message">
+                        No administration modules are available for this account.
+                    </p>
+
+                {% endif %}
+
+            </div>
+
+        </section>
+
+
+        <aside class="dashboard-panel side-panel">
+
+            <div class="panel-header">
+
+                <div class="panel-title">
+
+                    <span class="panel-title-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M4 19V8M10 19V5M16 19v-8M22 19V3"/>
+                        </svg>
+                    </span>
+
+                    <div>
+                        <h2>Recent Admin Activity</h2>
+                        <p>Your latest changes in Django administration.</p>
+                    </div>
+
+                </div>
+
+                <a href="{% url 'admin_audit_log' %}" class="panel-header-link">
+                    Full log
+                </a>
+
+            </div>
+
+            <div class="panel-content">
+
+                {% get_admin_log 8 as admin_log for_user user %}
+
+                {% if admin_log %}
+
+                    <div class="recent-activity-list">
+
+                        {% for entry in admin_log %}
+
+                            <article class="recent-activity-item
+                                {% if entry.is_addition %}activity-added
+                                {% elif entry.is_deletion %}activity-deleted
+                                {% else %}activity-updated{% endif %}">
+
+                                <span class="recent-activity-marker"></span>
+
+                                <div class="recent-activity-content">
+
+                                    <div class="recent-activity-top">
+
+                                        <strong>
+                                            {% if entry.is_deletion or not entry.get_admin_url %}
+                                                {{ entry.object_repr }}
+                                            {% else %}
+                                                <a href="{{ entry.get_admin_url }}">
+                                                    {{ entry.object_repr }}
+                                                </a>
+                                            {% endif %}
+                                        </strong>
+
+                                        <span class="recent-activity-type">
+                                            {% if entry.is_addition %}
+                                                Added
+                                            {% elif entry.is_deletion %}
+                                                Deleted
+                                            {% else %}
+                                                Updated
+                                            {% endif %}
+                                        </span>
+
+                                    </div>
+
+                                    <div class="recent-activity-meta">
+
+                                        <span>
+                                            {% if entry.content_type %}
+                                                {{ entry.content_type.name|capfirst }}
+                                            {% else %}
+                                                Administration record
+                                            {% endif %}
+                                        </span>
+
+                                        <time datetime="{{ entry.action_time|date:'c' }}">
+                                            {{ entry.action_time|date:"d M, h:i A" }}
+                                        </time>
+
+                                    </div>
+
+                                </div>
+
+                            </article>
+
+                        {% endfor %}
+
+                    </div>
+
+                {% else %}
+
+                    <div class="activity-empty-state">
+                        <span class="activity-empty-icon">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M6 3h12v18H6z"/>
+                                <path d="M9 8h6M9 12h6M9 16h4"/>
+                            </svg>
+                        </span>
+
+                        <strong>No recent Django admin actions</strong>
+                        <p>New additions, updates and deletions will appear here.</p>
+                    </div>
+
+                {% endif %}
+
+                <div class="compact-actions">
+
+                    <a href="{% url 'home' %}" class="compact-action-link">
+                        <span>Project dashboard</span>
+                        <strong>Open</strong>
+                    </a>
+
+                    <a href="{% url 'admin_users' %}" class="compact-action-link">
+                        <span>User approvals</span>
+                        <strong>Manage</strong>
+                    </a>
+
+                    <a href="{% url 'admin:auth_user_changelist' %}" class="compact-action-link">
+                        <span>Django users</span>
+                        <strong>View</strong>
+                    </a>
+
+                </div>
+
+            </div>
+
+        </aside>
+
     </div>
-  </section>
 
-  <aside class="admin-panel">
-    <h2>Quick Actions</h2>
-
-    <a href="{% url 'home' %}" class="quick-link">
-      <strong>Open Project Dashboard</strong>
-      <span>Return to the investigator workspace.</span>
-    </a>
-    <a href="{% url 'admin_users' %}" class="quick-link">
-      <strong>Review User Approvals</strong>
-      <span>Approve access, update profiles, and manage investigator roles.</span>
-    </a>
-    <a href="{% url 'admin_audit_log' %}" class="quick-link">
-      <strong>View Audit Log</strong>
-      <span>Inspect login, registration, upload, update, delete, and report activity.</span>
-    </a>
-    <a href="{% url 'admin:auth_user_changelist' %}" class="quick-link">
-      <strong>Django User Table</strong>
-      <span>Open the default Django account table.</span>
-    </a>
-    <a href="{% url 'admin:auth_group_changelist' %}" class="quick-link">
-      <strong>Permission Groups</strong>
-      <span>Control groups and model permissions.</span>
-    </a>
-
-    <div class="system-status">
-      <h2>System Status</h2>
-      <div class="status-row">
-        <span>Admin Authentication</span>
-        <strong>Active</strong>
-      </div>
-      <div class="status-row">
-        <span>Case Registry</span>
-        <strong>Ready</strong>
-      </div>
-      <div class="status-row">
-        <span>Evidence Storage</span>
-        <strong>Ready</strong>
-      </div>
-      <div class="status-row">
-        <span>AI Detection Engine</span>
-        <strong>Online</strong>
-      </div>
-    </div>
-  </aside>
 </div>
+
 {% endblock %}
