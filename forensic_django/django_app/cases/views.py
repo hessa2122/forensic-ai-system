@@ -10,27 +10,26 @@ import uuid
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
 from django.views import View
 
 from .models import Case, SystemService
 from evidence.models import DetectionResult, Evidence
 from accounts.models import log_action
+from accounts.permissions import can_manage_cases, can_manage_services, case_access_q, is_approved_user, is_system_admin
+from accounts.services import notify_user
 
 
 def _case_filter(user):
     """Admin sees everything; others see only cases they created or are assigned to."""
-    if user.is_staff:
-        return Q()   # no filter = all cases
-    return Q(created_by=user) | Q(assigned_to=user)
+    return case_access_q(user)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class CaseListView(View):
     def get(self, request):
         if not request.user.is_authenticated:
             return JsonResponse({'error': 'Authentication required'}, status=401)
+        if not is_approved_user(request.user):
+            return JsonResponse({'error': 'Account pending admin approval'}, status=403)
 
         cases = Case.objects.filter(_case_filter(request.user)).annotate(
             evidence_count=Count('evidence_items')
@@ -63,6 +62,8 @@ class CaseListView(View):
     def post(self, request):
         if not request.user.is_authenticated:
             return JsonResponse({'error': 'Authentication required'}, status=401)
+        if not can_manage_cases(request.user):
+            return JsonResponse({'error': 'Admin access required'}, status=403)
 
         try:
             body = json.loads(request.body)
@@ -88,20 +89,30 @@ class CaseListView(View):
             title=body.get('title', 'New Case'),
             description=body.get('description', ''),
             location=body.get('location', ''),
+            incident_date=body.get('incident_date') or None,
             status=body.get('status', 'open'),
             priority=body.get('priority', 'medium'),
             created_by=request.user,
             assigned_to=assigned_to,
         )
         log_action(request.user, 'case_created', target=f'Case #{case.case_number}')
+        if case.assigned_to:
+            notify_user(
+                case.assigned_to,
+                f"Admin assigned you to case {case.case_number}.",
+                'case',
+                case,
+                title='Case assigned',
+            )
         return JsonResponse({'id': case.id, 'case_number': case.case_number, 'title': case.title})
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class CaseDetailView(View):
     def get(self, request, pk):
         if not request.user.is_authenticated:
             return JsonResponse({'error': 'Authentication required'}, status=401)
+        if not is_approved_user(request.user):
+            return JsonResponse({'error': 'Account pending admin approval'}, status=403)
         try:
             case = Case.objects.get(_case_filter(request.user), pk=pk)
         except Case.DoesNotExist:
@@ -131,9 +142,11 @@ class CaseDetailView(View):
         })
 
     def patch(self, request, pk):
-        """Admin or case owner can update a case."""
+        """Admin can update a case."""
         if not request.user.is_authenticated:
             return JsonResponse({'error': 'Authentication required'}, status=401)
+        if not can_manage_cases(request.user):
+            return JsonResponse({'error': 'Admin access required'}, status=403)
         try:
             case = Case.objects.get(_case_filter(request.user), pk=pk)
         except Case.DoesNotExist:
@@ -147,11 +160,21 @@ class CaseDetailView(View):
                 setattr(case, field, body[field])
         case.save()
         log_action(request.user, 'case_updated', target=f'Case #{case.case_number}')
+        if case.assigned_to:
+            notify_user(
+                case.assigned_to,
+                f"Admin updated case {case.case_number}.",
+                'case',
+                case,
+                title='Case updated',
+            )
         return JsonResponse({'ok': True})
 
     def delete(self, request, pk):
         if not request.user.is_authenticated:
             return JsonResponse({'error': 'Authentication required'}, status=401)
+        if not can_manage_cases(request.user):
+            return JsonResponse({'error': 'Admin access required'}, status=403)
         try:
             case = Case.objects.get(_case_filter(request.user), pk=pk)
         except Case.DoesNotExist:
@@ -162,17 +185,20 @@ class CaseDetailView(View):
         return JsonResponse({'deleted': True})
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class StatsView(View):
     def get(self, request):
         if not request.user.is_authenticated:
             return JsonResponse({'error': 'Authentication required'}, status=401)
+        if not is_approved_user(request.user):
+            return JsonResponse({'error': 'Account pending admin approval'}, status=403)
 
         from reconstruction.models import SceneReconstruction
         case_qs = Case.objects.filter(_case_filter(request.user))
 
         none_count = medium_count = high_count = 0
-        for result in DetectionResult.objects.all().only('detections_json'):
+        evidence_qs = Evidence.objects.filter(case__in=case_qs)
+        detection_qs = DetectionResult.objects.filter(evidence__in=evidence_qs).only('detections_json')
+        for result in detection_qs:
             try:
                 detections = json.loads(result.detections_json or '[]')
             except json.JSONDecodeError:
@@ -185,11 +211,11 @@ class StatsView(View):
         return JsonResponse({
             'total_cases':      case_qs.count(),
             'open_cases':       case_qs.filter(status='open').count(),
-            'total_evidence':   Evidence.objects.count(),
+            'total_evidence':   evidence_qs.count(),
             'high_threat':      high_count,
             'medium_threat':    medium_count,
             'weapons_detected': high_count,
-            'reconstructions':  SceneReconstruction.objects.filter(success=True).count(),
+            'reconstructions':  SceneReconstruction.objects.filter(case__in=case_qs, success=True).count(),
             'critical_cases':   case_qs.filter(priority='critical').count(),
             'risk_distribution': {
                 'none':     none_count,
@@ -201,11 +227,12 @@ class StatsView(View):
         })
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class SystemServiceView(View):
     def get(self, request):
         if not request.user.is_authenticated:
             return JsonResponse({'error': 'Authentication required'}, status=401)
+        if not can_manage_services(request.user):
+            return JsonResponse({'error': 'Admin access required'}, status=403)
         services = SystemService.objects.all()
         return JsonResponse([{
             'id': service.id,
@@ -218,7 +245,7 @@ class SystemServiceView(View):
         } for service in services], safe=False)
 
     def post(self, request):
-        if not request.user.is_staff:
+        if not can_manage_services(request.user):
             return JsonResponse({'error': 'Admin access required'}, status=403)
         try:
             body = json.loads(request.body)

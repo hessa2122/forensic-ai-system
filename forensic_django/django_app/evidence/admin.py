@@ -1,9 +1,7 @@
 from django.contrib import admin
-from django.utils import timezone
-
-from accounts.services import create_notification
 from .models import AnalysisRequest, DetectionResult, Evidence
 from .views import _run_approved_request
+from .services import request_workflow
 
 
 @admin.register(Evidence)
@@ -27,25 +25,26 @@ class AnalysisRequestAdmin(admin.ModelAdmin):
     actions = ['approve_selected_requests', 'approve_and_run_selected_requests', 'reject_selected_requests']
 
     def approve_selected_requests(self, request, queryset):
-        queryset.update(status='approved', reviewed_by=request.user, reviewed_at=timezone.now())
         for analysis_request in queryset:
-            create_notification(analysis_request.requested_by, 'Your analysis request was approved.', 'analysis', analysis_request)
+            try:
+                request_workflow.approve_request(analysis_request.id, request.user, request=request)
+            except Exception as exc:
+                self.message_user(request, f'Request {analysis_request.pk} could not be approved: {exc}', level='ERROR')
     approve_selected_requests.short_description = 'Approve selected requests'
 
     def approve_and_run_selected_requests(self, request, queryset):
         for analysis_request in queryset:
-            analysis_request.status = 'approved'
-            analysis_request.reviewed_by = request.user
-            analysis_request.reviewed_at = timezone.now()
-            analysis_request.save(update_fields=['status', 'reviewed_by', 'reviewed_at'])
             try:
+                analysis_request = request_workflow.approve_request(analysis_request.id, request.user, request=request)
                 _run_approved_request(analysis_request, actor=request.user)
             except Exception as exc:
                 self.message_user(request, f'Request {analysis_request.pk} failed: {exc}', level='ERROR')
     approve_and_run_selected_requests.short_description = 'Approve and run selected requests'
 
     def reject_selected_requests(self, request, queryset):
-        queryset.update(status='rejected', reviewed_by=request.user, reviewed_at=timezone.now())
         for analysis_request in queryset:
-            create_notification(analysis_request.requested_by, 'Your analysis request was rejected.', 'analysis', analysis_request)
+            try:
+                request_workflow.reject_request(analysis_request.id, request.user, 'Rejected by admin.', request=request)
+            except Exception as exc:
+                self.message_user(request, f'Request {analysis_request.pk} could not be rejected: {exc}', level='ERROR')
     reject_selected_requests.short_description = 'Reject selected requests'

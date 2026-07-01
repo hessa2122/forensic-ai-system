@@ -9,7 +9,7 @@ from django.test import TestCase
 from PIL import Image
 
 from cases.models import Case
-from evidence.models import Evidence
+from evidence.models import AnalysisRequest, Evidence
 from reconstruction.scene_builder import build_scene
 
 
@@ -24,13 +24,21 @@ class ReconstructionEndpointTests(TestCase):
         self.user = User.objects.create_user(username="investigator", password="pass12345")
         self.user.profile.is_approved = True
         self.user.profile.save(update_fields=["is_approved"])
-        self.case = Case.objects.create(title="Recon case", case_number="CASE-RECON", created_by=self.user)
+        self.admin = User.objects.create_superuser(username="admin", password="pass12345")
+        self.case = Case.objects.create(title="Recon case", case_number="CASE-RECON", created_by=self.admin, assigned_to=self.user)
         self.evidence = Evidence.objects.create(
             case=self.case,
             uploaded_by=self.user,
             file=image_upload(),
             original_filename="scene.jpg",
             status="analyzed",
+        )
+        self.analysis_request = AnalysisRequest.objects.create(
+            evidence=self.evidence,
+            requested_by=self.user,
+            request_type="reconstruction",
+            status="approved",
+            reviewed_by=self.admin,
         )
     @mock.patch("reconstruction.views.build_scene")
     def test_reconstruct_returns_mesh_urls(self, build_scene):
@@ -50,7 +58,7 @@ class ReconstructionEndpointTests(TestCase):
         self.client.login(username="investigator", password="pass12345")
         response = self.client.post(
             "/reconstruction/reconstruct/",
-            data='{"evidence_id": %d}' % self.evidence.id,
+            data='{"request_id": %d}' % self.analysis_request.id,
             content_type="application/json",
             SERVER_NAME="localhost",
         )
@@ -59,6 +67,25 @@ class ReconstructionEndpointTests(TestCase):
         self.assertTrue(payload["mesh_url"].endswith(".glb"))
         self.assertTrue(payload["ply_url"].endswith(".ply"))
         self.assertTrue(payload["depth_url"].endswith(".png"))
+        self.analysis_request.refresh_from_db()
+        self.assertEqual(self.analysis_request.status, "completed")
+
+    @mock.patch("reconstruction.views.build_scene")
+    def test_closed_case_blocks_approved_reconstruction_run(self, build_scene):
+        self.case.status = "closed"
+        self.case.save(update_fields=["status"])
+        self.client.login(username="investigator", password="pass12345")
+
+        response = self.client.post(
+            "/reconstruction/reconstruct/",
+            data='{"request_id": %d}' % self.analysis_request.id,
+            content_type="application/json",
+            SERVER_NAME="localhost",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("case is closed", response.json()["error"].lower())
+        build_scene.assert_not_called()
 
 
 class SceneBuilderFallbackTests(TestCase):

@@ -488,10 +488,20 @@
       </div>
     </div>
 
-    <a class="btn btn-primary" href="{% url 'upload_evidence' case.id %}">
-      + Upload Evidence
-    </a>
+    {% if case_allows_activity %}
+      <a class="btn btn-primary" href="{% url 'upload_evidence' case.id %}">
+        + Upload Evidence
+      </a>
+    {% else %}
+      <span class="btn btn-ghost" style="pointer-events:none;">Case Closed</span>
+    {% endif %}
   </section>
+
+  {% if not case_allows_activity %}
+    <section class="summary-card" style="margin-bottom:18px;">
+      This case is closed or archived. Evidence upload, deletion, detection, and reconstruction actions are disabled.
+    </section>
+  {% endif %}
 
   {% if messages %}
     <section style="display:grid;gap:10px;margin-bottom:18px;">
@@ -584,9 +594,11 @@
         and generate reconstruction data.
       </p>
 
-      <a class="btn btn-primary" href="{% url 'upload_evidence' case.id %}">
-        Upload First Evidence
-      </a>
+      {% if case_allows_activity %}
+        <a class="btn btn-primary" href="{% url 'upload_evidence' case.id %}">
+          Upload First Evidence
+        </a>
+      {% endif %}
     </div>
   {% endif %}
 

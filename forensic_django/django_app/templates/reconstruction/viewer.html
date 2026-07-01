@@ -612,9 +612,20 @@
       {% if evidence %}
       <div class="sb-section">
         <div class="sb-section-title">Pipeline</div>
-        <button class="reconstruct-btn" id="btnReconstruct" onclick="triggerReconstruct()">
-          ⚡ Run Reconstruction
+        {% if not case_allows_processing %}
+        <button class="reconstruct-btn" id="btnReconstruct" disabled>
+          Case Closed
         </button>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;text-align:center;">New 3D processing is disabled for closed or archived cases.</div>
+        {% elif active_request and active_request.status != "approved" %}
+        <button class="reconstruct-btn" id="btnReconstruct" disabled>
+          Request {{ active_request.status|title }}
+        </button>
+        {% else %}
+        <button class="reconstruct-btn" id="btnReconstruct" onclick="triggerReconstruct()">
+          {% if can_run_reconstruction %}⚡ Run Reconstruction{% else %}Submit 3D Request{% endif %}
+        </button>
+        {% endif %}
         <div id="reconstructStatus" style="font-size:10px;color:var(--muted);margin-top:4px;text-align:center;"></div>
       </div>
       {% endif %}
@@ -1256,25 +1267,50 @@ document.getElementById('btnCollapse').onclick = () => {
 // ═════════════════════════════════════════════════════════════════════════════
 async function triggerReconstruct() {
   if (!EVIDENCE_ID) return;
+  const caseAllowsProcessing = {{ case_allows_processing|yesno:"true,false" }};
+  if (!caseAllowsProcessing) {
+    alert('This case is closed. New 3D reconstruction is disabled.');
+    return;
+  }
   const btn = document.getElementById('btnReconstruct');
   const status = document.getElementById('reconstructStatus');
+  const canRun = {{ can_run_reconstruction|yesno:"true,false" }};
+  const approvedRequestId = {% if active_request and active_request.status == "approved" %}{{ active_request.id }}{% else %}null{% endif %};
   btn.disabled = true;
-  btn.textContent = '⏳ Processing…';
-  status.textContent = 'Running depth estimation and mesh reconstruction…';
-  showOverlay('Reconstructing scene…', 'This may take 30–90 seconds');
+  btn.textContent = canRun ? 'Processing...' : 'Submitting...';
+  status.textContent = canRun ? 'Running depth estimation and mesh reconstruction...' : 'Submitting reconstruction request for admin approval...';
+  if (canRun) showOverlay('Reconstructing scene...', 'This may take 30-90 seconds');
 
   try {
-    const resp = await fetch('/reconstruction/reconstruct/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-      body: JSON.stringify({ evidence_id: EVIDENCE_ID }),
-    });
+    let resp;
+    if (canRun) {
+      resp = await fetch('/reconstruction/reconstruct/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ request_id: approvedRequestId, evidence_id: EVIDENCE_ID }),
+      });
+    } else {
+      const formData = new FormData();
+      formData.append('request_type', 'reconstruction');
+      resp = await fetch(`/evidence/${EVIDENCE_ID}/request-analysis/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        body: formData,
+      });
+    }
     const data = await resp.json();
 
     if (!resp.ok) throw new Error(data.error || 'Unknown error');
 
-    status.textContent = `✅ Done — ${data.total_points?.toLocaleString()} pts, ${data.num_clusters} clusters`;
-    document.getElementById('statPoints').textContent = data.total_points?.toLocaleString() || '—';
+    if (!canRun) {
+      status.textContent = 'Request submitted. Admin approval is required before reconstruction can run.';
+      alert('3D reconstruction request submitted. Admin must approve it first.');
+      window.location.reload();
+      return;
+    }
+
+    status.textContent = `Done - ${data.total_points?.toLocaleString()} pts, ${data.num_clusters} clusters`;
+    document.getElementById('statPoints').textContent = data.total_points?.toLocaleString() || '-';
 
     if (data.mesh_url) loadMesh(data.mesh_url, data.mesh_type || 'glb');
     else await loadLatestSceneData();
@@ -1283,7 +1319,7 @@ async function triggerReconstruct() {
     status.textContent = '❌ ' + err.message;
   } finally {
     btn.disabled = false;
-    btn.textContent = '⚡ Run Reconstruction';
+    btn.textContent = canRun ? '⚡ Run Reconstruction' : 'Submit 3D Request';
   }
 }
 

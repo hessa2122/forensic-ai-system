@@ -129,6 +129,8 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 1.5r
 .nav-link:hover,.nav-link.active{background:var(--border);color:var(--text)}
 .nav-right{display:flex;align-items:center;gap:.75rem}
 .nav-status{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--green);font-family:var(--mono)}
+.notification-bell{position:relative;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border:1px solid var(--border2);border-radius:7px;background:var(--surface2);color:var(--text);text-decoration:none}
+.notification-badge{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#ef4444;color:#fff;font-size:11px;line-height:18px;text-align:center;font-family:var(--mono);display:none}
 .status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
@@ -2413,6 +2415,11 @@ table th{
 
   {% if request.user.is_authenticated %}
 
+    <a class="notification-bell" href="{% url 'notifications_page' %}" title="Notifications">
+      <span>🔔</span>
+      <span id="notification-badge" class="notification-badge"></span>
+    </a>
+
     <div class="nav-status">
       <span class="status-dot"></span>
 
@@ -2482,10 +2489,12 @@ table th{
 
   <div class="sidebar-label" style="margin-top:1.7rem;">Quick Actions</div>
 
+  {% if request.user.is_staff or request.user.is_superuser %}
   <div class="sidebar-item" onclick="showPage('cases'); openNewCase();">
     <span class="side-icon">＋</span>
     New Case
   </div>
+  {% endif %}
 
   <div class="sidebar-item" onclick="showPage('cases'); showToast('Select a case and click Upload to add evidence.', 'info');">
     <span class="side-icon">📤</span>
@@ -2734,7 +2743,9 @@ table th{
         <div class="section-title">Case Management</div>
         <div class="section-sub">All forensic investigation cases</div>
       </div>
+      {% if request.user.is_staff or request.user.is_superuser %}
       <button class="btn btn-primary" onclick="openNewCase()">+ New Case</button>
+      {% endif %}
     </div>
 
     <!-- New case form -->
@@ -2765,6 +2776,15 @@ table th{
             <option value="active">Active Investigation</option>
           </select>
         </div>
+      </div>
+      <div class="form-group">
+        <label>Assign To</label>
+        <select id="case-assigned-to">
+          <option value="">Unassigned</option>
+          {% for user in assignable_users %}
+            <option value="{{ user.id }}">{{ user.get_full_name|default:user.username }} ({{ user.profile.display_role }})</option>
+          {% endfor %}
+        </select>
       </div>
       <div class="form-group"><label>Description</label><textarea id="case-desc" rows="2" placeholder="Case summary..."></textarea></div>
       <div style="display:flex;gap:.75rem">
@@ -3073,8 +3093,11 @@ function openNewCase() {
 }
 
 async function createCase() {
+  const form = document.getElementById('new-case-form');
+  if (!form) { showToast('Only admins can create cases.', 'error'); return; }
   const title  = document.getElementById('case-title').value.trim();
   const number = document.getElementById('case-number').value.trim();
+  const assignedTo = document.getElementById('case-assigned-to')?.value || '';
   if (!title) { showToast('Case title is required', 'error'); return; }
 
   try {
@@ -3089,9 +3112,17 @@ async function createCase() {
         priority:      document.getElementById('case-priority').value,
         status:        document.getElementById('case-status').value,
         description:   document.getElementById('case-desc').value,
+        assigned_to_id: assignedTo || null,
       })
     });
-    if (!r.ok) throw new Error('Failed to create case');
+    if (!r.ok) {
+      let message = 'Failed to create case';
+      try {
+        const payload = await r.json();
+        message = payload.error || message;
+      } catch (err) {}
+      throw new Error(message);
+    }
     showToast('Case created successfully!', 'success');
     document.getElementById('new-case-form').style.display = 'none';
     loadCases();
@@ -3712,6 +3743,21 @@ function showToast(msg, type='success') {
   t.className   = `toast toast-${type} show`;
   setTimeout(() => t.classList.remove('show'), 3500);
 }
+
+async function refreshNotificationBadge() {
+  const badge = document.getElementById('notification-badge');
+  if (!badge) return;
+  try {
+    const response = await fetch('{% url "api_unread_count" %}', {headers: {'X-Requested-With': 'fetch'}});
+    if (!response.ok) return;
+    const data = await response.json();
+    const count = Number(data.unread_count || 0);
+    badge.textContent = count > 99 ? '99+' : String(count);
+    badge.style.display = count > 0 ? 'inline-block' : 'none';
+  } catch (error) {}
+}
+refreshNotificationBadge();
+setInterval(refreshNotificationBadge, 45000);
 </script>
 </body>
 </html>

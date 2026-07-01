@@ -404,6 +404,12 @@
     </div>
   </section>
 
+  {% if not case_allows_activity %}
+  <section class="panel">
+    <h2>Case Closed</h2>
+    <p style="color:#9fb3ce;margin-top:10px;">This case is closed or archived. Evidence upload and new analysis activities are disabled.</p>
+  </section>
+  {% else %}
   <form class="panel" method="post" enctype="multipart/form-data">
     {% csrf_token %}
 
@@ -434,6 +440,7 @@
       <button class="btn primary" type="submit">Run Analysis</button>
     </div>
   </form>
+  {% endif %}
 
 </main>
 

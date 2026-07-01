@@ -26,9 +26,11 @@ from django.utils.text import get_valid_filename
 from .ai_detector import analyze_image
 from .models import AnalysisRequest, DetectionResult, Evidence
 from .model_registry import candidate_count, confirmed_count, count_label, display_label, weapons_found
-from .services.detection_pipeline import WEAPON_LABELS
+from .services.detection_pipeline import FORENSIC_CLASSES, WEAPON_LABELS
+from .services import request_workflow
 from accounts.models import log_action
-from accounts.services import create_notification
+from accounts.services import notify_admins
+from accounts.permissions import can_access_evidence, can_manage_cases, can_review_analysis_requests, is_approved_user, is_system_admin
 
 logger = logging.getLogger(__name__)
 ANALYSIS_COPY_SUFFIXES = {'.jfif', '.jpe'}
@@ -76,11 +78,11 @@ def _validate_uploaded_image(uploaded: UploadedFile):
 
 def _case_for_user(case_id, user):
     from cases.models import Case
-    if user.is_staff:
+    if is_system_admin(user):
         return get_object_or_404(Case, id=case_id)
     return get_object_or_404(
         Case,
-        Q(created_by=user) | Q(assigned_to=user) | Q(created_by__isnull=True),
+        Q(assigned_to=user),
         id=case_id,
     )
 
@@ -251,8 +253,13 @@ def _save_analysis(evidence, analysis_request=None):
             'confirmed_count': confirmed_count(detections),
             'candidate_count': candidate_count(detections),
             'weapon_count': count_label(detections, WEAPON_LABELS),
+            'gun_count': count_label(detections, {'gun'}),
+            'knife_count': count_label(detections, {'knife'}),
+            'grenade_count': count_label(detections, {'grenade'}),
             'blood_count': count_label(detections, {'blood_stain'}),
             'fingerprint_count': count_label(detections, {'fingerprint'}),
+            'footprint_count': count_label(detections, {'footprint'}),
+            'class_counts': analysis.get('class_counts', {label: count_label(detections, {label}) for label in sorted(FORENSIC_CLASSES)}),
             'scene_type':      analysis.get('scene_type', 'unknown'),
             'sources_used':    ','.join(analysis.get('sources_used', [])),
             'source_models':   analysis.get('source_models', []),
@@ -303,12 +310,7 @@ def _mark_analysis_failed(evidence, message):
 
 def _is_approved(user):
     """Return True if user is staff or has an approved profile."""
-    if user.is_staff:
-        return True
-    try:
-        return user.profile.is_approved
-    except Exception:
-        return False
+    return is_approved_user(user)
 
 
 @login_required
@@ -316,8 +318,12 @@ def upload_evidence(request, case_id):
     if not _is_approved(request.user):
         return render(request, 'accounts/pending_approval.html')
     case = _case_for_user(case_id, request.user)
+    case_allows_activity = request_workflow.case_allows_activity(case)
     upload_results = []
     if request.method == 'POST':
+        if not case_allows_activity:
+            messages.error(request, 'This case is closed. Evidence upload is disabled.')
+            return redirect('evidence_list', case_id=case_id)
         files = request.FILES.getlist('evidence_files')
         for file in files:
             try:
@@ -335,17 +341,26 @@ def upload_evidence(request, case_id):
                     )
                 evidence.original_sha256 = _sha256_file(evidence.file.path)
                 evidence.save(update_fields=['original_sha256'])
-                if getattr(settings, 'AUTO_ANALYZE_ON_UPLOAD', False):
+                if getattr(settings, 'AUTO_ANALYZE_ON_UPLOAD', False) and is_system_admin(request.user):
                     try:
-                        _save_analysis(evidence)
+                        req = request_workflow.submit_request(evidence, request.user, 'detection', request=request)
+                        req.status = 'approved'
+                        req.reviewed_by = request.user
+                        req.reviewed_at = timezone.now()
+                        req.save(update_fields=['status', 'reviewed_by', 'reviewed_at'])
+                        _run_approved_request(req, actor=request.user)
                     except Exception:
-                        logger.exception('Evidence detection failed for evidence_id=%s', evidence.id)
-                        _mark_analysis_failed(evidence, 'Analysis failed. Submit or retry an approved analysis request.')
-                        upload_results.append({'filename': safe_name, 'status': 'failed', 'error': evidence.analysis_error})
-                        continue
+                        logger.exception('Admin auto-analysis failed for evidence_id=%s', evidence.id)
                 upload_results.append({'filename': safe_name, 'status': 'uploaded'})
                 log_action(request.user, 'evidence_upload',
                            target=f'Case #{case.case_number} / {safe_name}')
+                if not is_system_admin(request.user):
+                    notify_admins(
+                        f"{request.user.get_username()} uploaded evidence {safe_name} to case {case.case_number}.",
+                        "case",
+                        evidence,
+                        title="User uploaded evidence",
+                    )
             except ValidationError as exc:
                 upload_results.append({'filename': getattr(file, 'name', 'unknown'), 'status': 'rejected', 'error': '; '.join(exc.messages)})
         for item in upload_results:
@@ -354,7 +369,11 @@ def upload_evidence(request, case_id):
             else:
                 messages.error(request, f"{item['filename']}: {item.get('error', 'Upload failed.')}")
         return redirect('evidence_list', case_id=case_id)
-    return render(request, 'evidence/upload.html', {'case': case, 'upload_results': upload_results})
+    return render(request, 'evidence/upload.html', {
+        'case': case,
+        'upload_results': upload_results,
+        'case_allows_activity': case_allows_activity,
+    })
 
 
 @require_http_methods(['POST'])
@@ -379,6 +398,8 @@ def api_upload_evidence(request):
         case = _case_for_user(case_id, request.user)
     except (Http404, ValueError):
         return JsonResponse({'error': 'Selected case is not available for upload.'}, status=404)
+    if not request_workflow.case_allows_activity(case):
+        return JsonResponse({'error': 'This case is closed. Evidence upload is disabled.'}, status=403)
 
     try:
         safe_name = _validate_uploaded_image(image)
@@ -400,7 +421,7 @@ def api_upload_evidence(request):
 
     analysis = None
     direct_run_requested = request.POST.get('run_analysis') == '1'
-    if getattr(settings, 'AUTO_ANALYZE_ON_UPLOAD', False) or direct_run_requested:
+    if (getattr(settings, 'AUTO_ANALYZE_ON_UPLOAD', False) or direct_run_requested) and is_system_admin(request.user):
         analysis_request = None
         if direct_run_requested:
             analysis_request = AnalysisRequest.objects.create(
@@ -408,7 +429,7 @@ def api_upload_evidence(request):
                 requested_by=request.user,
                 request_type='detection',
                 status='approved',
-                reviewed_by=request.user if request.user.is_staff else None,
+                reviewed_by=request.user,
                 reviewed_at=timezone.now(),
             )
         try:
@@ -436,6 +457,13 @@ def api_upload_evidence(request):
 
     log_action(request.user, 'evidence_upload',
                target=f'Case #{case.case_number} / {safe_name}')
+    if not is_system_admin(request.user):
+        notify_admins(
+            f"{request.user.get_username()} uploaded evidence {safe_name} to case {case.case_number}.",
+            "case",
+            evidence,
+            title="User uploaded evidence",
+        )
 
     dashboard_detections = [_dashboard_detection(d) for d in (analysis or {}).get('detections', [])]
     risk = _overall_risk(dashboard_detections)
@@ -473,21 +501,23 @@ def evidence_list(request, case_id):
             ev.detections    = []
             ev.scene_summary = ''
             ev.evidence_count = 0
-    return render(request, 'evidence/list.html', {'case': case, 'evidence_items': evidence_items})
+    return render(request, 'evidence/list.html', {
+        'case': case,
+        'evidence_items': evidence_items,
+        'case_allows_activity': request_workflow.case_allows_activity(case),
+    })
 
 
 @login_required
 def evidence_detail(request, evidence_id):
     if not _is_approved(request.user):
         return render(request, 'accounts/pending_approval.html')
-    if request.user.is_staff:
+    if is_system_admin(request.user):
         evidence = get_object_or_404(Evidence, id=evidence_id)
     else:
         evidence = get_object_or_404(
             Evidence, id=evidence_id,
-            case__in=__import__('cases.models', fromlist=['Case']).Case.objects.filter(
-                Q(created_by=request.user) | Q(assigned_to=request.user)
-            )
+            case__assigned_to=request.user,
         )
     try:
         dr = evidence.detectionresult
@@ -507,6 +537,17 @@ def evidence_detail(request, evidence_id):
         status__in=['pending', 'approved', 'processing'],
     ).order_by('-requested_at').first()
     latest_request = evidence.analysis_requests.filter(request_type='detection').order_by('-requested_at').first()
+    case_allows_processing = request_workflow.case_allows_processing(evidence)
+    can_run_approved_detection = bool(
+        case_allows_processing
+        and
+        active_request
+        and active_request.status == 'approved'
+        and (is_system_admin(request.user) or active_request.requested_by_id == request.user.id)
+    )
+    can_request_detection = case_allows_processing and not active_request and evidence.status != 'analyzed'
+    can_submit_reanalysis_request = case_allows_processing and not active_request and evidence.status == 'analyzed'
+    can_staff_run_detection = bool(case_allows_processing and is_system_admin(request.user) and not can_run_approved_detection)
     if annotated_url and not annotated_url.startswith(('http://', 'https://', settings.MEDIA_URL)):
         annotated_url = settings.MEDIA_URL + annotated_url
     return render(request, 'evidence/detail.html', {
@@ -522,9 +563,16 @@ def evidence_detail(request, evidence_id):
         'candidate_count': len(candidates),
         'blood_count': count_label(detections, {'blood_stain'}),
         'fingerprint_count': count_label(detections, {'fingerprint'}),
+        'footprint_count': count_label(detections, {'footprint'}),
+        'grenade_count': count_label(detections, {'grenade'}),
         'weapon_count': count_label(detections, WEAPON_LABELS),
         'active_request': active_request,
         'latest_request': latest_request,
+        'can_run_approved_detection': can_run_approved_detection,
+        'can_request_detection': can_request_detection,
+        'can_submit_reanalysis_request': can_submit_reanalysis_request,
+        'can_staff_run_detection': can_staff_run_detection,
+        'case_allows_processing': case_allows_processing,
     })
 
 
@@ -533,29 +581,48 @@ def evidence_detail(request, evidence_id):
 def reanalyze_evidence(request, evidence_id):
     if not _is_approved(request.user):
         return JsonResponse({'error': 'Account pending approval'}, status=403)
-    if request.user.is_staff:
+    if is_system_admin(request.user):
         evidence = get_object_or_404(Evidence, id=evidence_id)
     else:
         evidence = get_object_or_404(
             Evidence,
-            Q(case__created_by=request.user) | Q(case__assigned_to=request.user) | Q(uploaded_by=request.user),
+            Q(case__assigned_to=request.user),
             id=evidence_id,
         )
+    approved_request = evidence.analysis_requests.filter(
+        request_type='detection',
+        status='approved',
+    ).order_by('-requested_at').first()
+    if approved_request:
+        if not is_system_admin(request.user) and approved_request.requested_by_id != request.user.id:
+            return JsonResponse({'error': 'Only the requester can run this approved detection request.'}, status=403)
+        try:
+            analysis = _run_approved_request(approved_request, actor=request.user)
+            return JsonResponse({
+                'status': 'ok',
+                'request_status': 'completed',
+                'request_id': approved_request.id,
+                'detections': analysis.get('detections', []),
+                'scene_summary': analysis.get('scene_summary', ''),
+                'evidence_count': analysis.get('evidence_count', 0),
+                'sources_used': analysis.get('sources_used', []),
+            })
+        except ValidationError as exc:
+            message = '; '.join(exc.messages) if hasattr(exc, 'messages') else str(exc)
+            return JsonResponse({'status': 'blocked', 'error': message}, status=403)
+        except Exception as exc:
+            return JsonResponse({'status': 'failed', 'error': str(exc)}, status=500)
     try:
-        analysis = _save_analysis(evidence)
-    except Exception:
-        logger.exception('Evidence reanalysis failed for evidence_id=%s', evidence.id)
-        _mark_analysis_failed(evidence, 'Reanalysis failed. Check server logs and retry.')
-        return JsonResponse({'status': 'failed', 'error': evidence.analysis_error}, status=500)
-    log_action(request.user, 'analysis_run',
-               target=f'Evidence #{evidence_id}')
-    return JsonResponse({
-        'status':         'ok',
-        'detections':     analysis.get('detections', []),
-        'scene_summary':  analysis.get('scene_summary', ''),
-        'evidence_count': analysis.get('evidence_count', 0),
-        'sources_used':   analysis.get('sources_used', []),
-    })
+        analysis_request = request_workflow.submit_request(evidence, request.user, 'detection', request=request)
+        if is_system_admin(request.user):
+            analysis_request = request_workflow.approve_request(analysis_request.id, request.user, request=request)
+            analysis = _run_approved_request(analysis_request, actor=request.user)
+            return JsonResponse({'status': 'completed', 'request_id': analysis_request.id, 'detections': analysis.get('detections', [])})
+    except IntegrityError:
+        return JsonResponse({'error': 'An active request already exists.'}, status=409)
+    except Exception as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+    return JsonResponse({'status': analysis_request.status, 'request_id': analysis_request.id})
 
 
 @login_required
@@ -563,31 +630,19 @@ def reanalyze_evidence(request, evidence_id):
 def submit_analysis_request(request, evidence_id):
     if not _is_approved(request.user):
         return JsonResponse({'error': 'Account pending approval'}, status=403)
-    if request.user.is_staff:
+    if is_system_admin(request.user):
         evidence = get_object_or_404(Evidence, id=evidence_id)
     else:
         evidence = get_object_or_404(
             Evidence,
-            Q(case__created_by=request.user) | Q(case__assigned_to=request.user) | Q(uploaded_by=request.user),
+            Q(case__assigned_to=request.user),
             id=evidence_id,
         )
     request_type = request.POST.get('request_type', 'detection')
     if request_type not in {'detection', 'reconstruction'}:
         return JsonResponse({'error': 'Unsupported request type'}, status=400)
-    active_request = AnalysisRequest.objects.filter(
-        evidence=evidence,
-        request_type=request_type,
-        status__in=['pending', 'approved', 'processing'],
-    ).first()
-    if active_request:
-        return JsonResponse({'error': 'An active request already exists.', 'request_id': active_request.id}, status=409)
     try:
-        analysis_request = AnalysisRequest.objects.create(
-            evidence=evidence,
-            request_type=request_type,
-            requested_by=request.user,
-            status='pending',
-        )
+        analysis_request = request_workflow.submit_request(evidence, request.user, request_type, request=request)
     except IntegrityError:
         active_request = AnalysisRequest.objects.filter(
             evidence=evidence,
@@ -598,60 +653,36 @@ def submit_analysis_request(request, evidence_id):
             'error': 'An active request already exists.',
             'request_id': active_request.id if active_request else None,
         }, status=409)
-    log_action(request.user, 'request_submitted', target=f'Evidence #{evidence.id}')
+    except ValidationError as exc:
+        message = '; '.join(exc.messages) if hasattr(exc, 'messages') else str(exc)
+        return JsonResponse({'error': message}, status=400)
     return JsonResponse({'status': analysis_request.status, 'request_id': analysis_request.id})
 
 
 def _run_approved_request(analysis_request, actor=None):
-    analysis_request.status = 'processing'
-    analysis_request.processing_started_at = timezone.now()
-    analysis_request.error_message = ''
-    analysis_request.save(update_fields=['status', 'processing_started_at', 'error_message'])
+    analysis_request = request_workflow.start_request(analysis_request.id, actor=actor)
     try:
         if analysis_request.request_type != 'detection':
             raise ValueError('Only detection requests can be run by this endpoint.')
         analysis = _save_analysis(analysis_request.evidence, analysis_request=analysis_request)
-        analysis_request.status = 'completed'
-        analysis_request.completed_at = timezone.now()
-        analysis_request.save(update_fields=['status', 'completed_at'])
-        create_notification(
-            analysis_request.requested_by,
-            f'Analysis completed for {analysis_request.evidence.original_filename}.',
-            'analysis',
-            analysis_request,
-        )
-        if actor:
-            log_action(actor, 'analysis_run', target=f'AnalysisRequest #{analysis_request.id}')
+        request_workflow.complete_request(analysis_request.id, actor=actor)
         return analysis
     except Exception as exc:
         logger.exception('Approved analysis request failed request_id=%s', analysis_request.id)
         _mark_analysis_failed(analysis_request.evidence, str(exc))
-        analysis_request.status = 'failed'
-        analysis_request.error_message = str(exc)
-        analysis_request.completed_at = timezone.now()
-        analysis_request.save(update_fields=['status', 'error_message', 'completed_at'])
-        create_notification(
-            analysis_request.requested_by,
-            f'Analysis failed for {analysis_request.evidence.original_filename}.',
-            'analysis',
-            analysis_request,
-        )
+        request_workflow.fail_request(analysis_request.id, str(exc), actor=actor)
         raise
 
 
 @login_required
 @require_http_methods(['POST'])
 def approve_analysis_request(request, request_id):
-    if not request.user.is_staff:
+    if not can_review_analysis_requests(request.user):
         return JsonResponse({'error': 'Admin access required'}, status=403)
-    analysis_request = get_object_or_404(AnalysisRequest, id=request_id)
-    analysis_request.status = 'approved'
-    analysis_request.reviewed_by = request.user
-    analysis_request.reviewed_at = timezone.now()
-    analysis_request.rejection_reason = ''
-    analysis_request.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'rejection_reason'])
-    create_notification(analysis_request.requested_by, 'Your analysis request was approved.', 'analysis', analysis_request)
-    log_action(request.user, 'request_approved', target=f'AnalysisRequest #{analysis_request.id}')
+    try:
+        analysis_request = request_workflow.approve_request(request_id, request.user, request=request)
+    except Exception as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
     if request.POST.get('run') == '1':
         try:
             analysis = _run_approved_request(analysis_request, actor=request.user)
@@ -664,16 +695,14 @@ def approve_analysis_request(request, request_id):
 @login_required
 @require_http_methods(['POST'])
 def reject_analysis_request(request, request_id):
-    if not request.user.is_staff:
+    if not can_review_analysis_requests(request.user):
         return JsonResponse({'error': 'Admin access required'}, status=403)
-    analysis_request = get_object_or_404(AnalysisRequest, id=request_id)
-    analysis_request.status = 'rejected'
-    analysis_request.reviewed_by = request.user
-    analysis_request.reviewed_at = timezone.now()
-    analysis_request.rejection_reason = request.POST.get('rejection_reason', '').strip()
-    analysis_request.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'rejection_reason'])
-    create_notification(analysis_request.requested_by, 'Your analysis request was rejected.', 'analysis', analysis_request)
-    log_action(request.user, 'request_rejected', target=f'AnalysisRequest #{analysis_request.id}', details=analysis_request.rejection_reason)
+    try:
+        analysis_request = request_workflow.reject_request(
+            request_id, request.user, request.POST.get('rejection_reason', ''), request=request,
+        )
+    except Exception as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
     return JsonResponse({'status': analysis_request.status, 'reason': analysis_request.rejection_reason})
 
 
@@ -682,18 +711,28 @@ def reject_analysis_request(request, request_id):
 def delete_evidence(request, evidence_id):
     if not _is_approved(request.user):
         return JsonResponse({'error': 'Account pending approval'}, status=403)
-    if request.user.is_staff:
+    if is_system_admin(request.user):
         evidence = get_object_or_404(Evidence, id=evidence_id)
     else:
         evidence = get_object_or_404(
             Evidence,
-            Q(case__created_by=request.user) | Q(case__assigned_to=request.user),
+            Q(case__assigned_to=request.user),
             id=evidence_id,
         )
+    if not request_workflow.case_allows_processing(evidence):
+        return JsonResponse({'error': 'This case is closed. Evidence deletion is disabled.'}, status=403)
     case_id = evidence.case.id
     fn = evidence.original_filename
     if evidence.file and os.path.exists(evidence.file.path):
         os.remove(evidence.file.path)
     evidence.delete()
     log_action(request.user, 'evidence_delete', target=fn)
+    if not is_system_admin(request.user):
+        notify_admins(
+            f"{request.user.get_username()} deleted evidence {fn}.",
+            "case",
+            None,
+            title="User deleted evidence",
+            priority="high",
+        )
     return redirect('evidence_list', case_id=case_id)

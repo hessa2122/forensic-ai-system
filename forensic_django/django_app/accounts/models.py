@@ -128,16 +128,28 @@ class Notification(models.Model):
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    title = models.CharField(max_length=160, blank=True, default='')
     message = models.TextField()
     notification_type = models.CharField(max_length=30, choices=NOTIFICATION_TYPES, default='system')
+    priority = models.CharField(
+        max_length=20,
+        choices=[('low', 'Low'), ('normal', 'Normal'), ('high', 'High')],
+        default='normal',
+    )
     related_object_type = models.CharField(max_length=80, blank=True, default='')
     related_object_id = models.CharField(max_length=80, blank=True, default='')
+    action_url = models.CharField(max_length=500, blank=True, default='')
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     read_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'is_read']),
+            models.Index(fields=['user', 'created_at']),
+            models.Index(fields=['notification_type']),
+        ]
 
     def __str__(self):
         return f"{self.user}: {self.notification_type}"

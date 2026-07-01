@@ -9,6 +9,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from PIL import Image
 
+from accounts.models import Notification
 from cases.models import Case
 from evidence.model_registry import (
     CONFIRMED_FORENSIC_CLASSES,
@@ -46,6 +47,7 @@ class EvidenceUploadTests(TestCase):
             title="Upload case",
             case_number="CASE-UPLOAD-1",
             created_by=self.user,
+            assigned_to=self.user,
         )
 
     def test_unauthenticated_upload_rejected(self):
@@ -55,19 +57,23 @@ class EvidenceUploadTests(TestCase):
 
     @mock.patch("evidence.views.analyze_image")
     def test_authorized_valid_jpeg_upload_preserves_original_and_stays_pending(self, analyze_image):
+        admin = User.objects.create_superuser(username="upload_admin", password="pass12345")
         self.client.login(username="investigator", password="pass12345")
         uploaded = image_upload()
         original_bytes = uploaded.read()
         uploaded.seek(0)
-        response = self.client.post(
-            reverse("upload_evidence", args=[self.case.id]),
-            {"evidence_files": [uploaded]},
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                reverse("upload_evidence", args=[self.case.id]),
+                {"evidence_files": [uploaded]},
+            )
         self.assertEqual(response.status_code, 302)
         evidence = Evidence.objects.get()
         self.assertEqual(evidence.status, "pending")
         self.assertEqual(evidence.original_sha256, __import__("hashlib").sha256(original_bytes).hexdigest())
         self.assertFalse(DetectionResult.objects.filter(evidence=evidence).exists())
+        self.assertTrue(Notification.objects.filter(user=admin, title="User uploaded evidence").exists())
+        self.assertFalse(Notification.objects.filter(user=self.user, title="User uploaded evidence").exists())
         analyze_image.assert_not_called()
 
     def test_text_file_renamed_as_jpg_rejected_by_content(self):
@@ -82,7 +88,7 @@ class EvidenceUploadTests(TestCase):
 
     @override_settings(AUTO_ANALYZE_ON_UPLOAD=True)
     @mock.patch("evidence.views.analyze_image")
-    def test_auto_analysis_failure_sets_failed_status_when_enabled(self, analyze_image):
+    def test_auto_analysis_does_not_bypass_approval_for_normal_user(self, analyze_image):
         analyze_image.side_effect = RuntimeError("detector unavailable")
         self.client.login(username="investigator", password="pass12345")
         response = self.client.post(
@@ -91,8 +97,9 @@ class EvidenceUploadTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         evidence = Evidence.objects.get()
-        self.assertEqual(evidence.status, "failed")
-        self.assertIn("Analysis failed", evidence.analysis_error)
+        self.assertEqual(evidence.status, "pending")
+        self.assertEqual(evidence.analysis_error, "")
+        analyze_image.assert_not_called()
 
     def test_api_upload_without_auto_analysis_returns_pending(self):
         self.client.login(username="investigator", password="pass12345")
@@ -106,8 +113,35 @@ class EvidenceUploadTests(TestCase):
         self.assertEqual(payload["detections"], [])
         self.assertFalse(payload["weapons_found"])
 
+    def test_closed_case_blocks_web_upload(self):
+        self.case.status = "closed"
+        self.case.save(update_fields=["status"])
+        self.client.login(username="investigator", password="pass12345")
+
+        response = self.client.post(
+            reverse("upload_evidence", args=[self.case.id]),
+            {"evidence_files": [image_upload()]},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Evidence.objects.exists())
+
+    def test_closed_case_blocks_api_upload(self):
+        self.case.status = "closed"
+        self.case.save(update_fields=["status"])
+        self.client.login(username="investigator", password="pass12345")
+
+        response = self.client.post(
+            reverse("api_upload_evidence"),
+            {"case_id": self.case.id, "image": image_upload()},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("case is closed", response.json()["error"].lower())
+        self.assertFalse(Evidence.objects.exists())
+
     @mock.patch("evidence.views.analyze_image")
-    def test_api_upload_with_run_analysis_returns_detections(self, analyze_image):
+    def test_api_upload_with_run_analysis_does_not_execute_for_normal_user(self, analyze_image):
         analyze_image.return_value = {
             "detections": [
                 {
@@ -139,12 +173,13 @@ class EvidenceUploadTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["status"], "analyzed")
-        self.assertEqual(payload["total_objects"], 1)
-        self.assertTrue(DetectionResult.objects.filter(evidence__status="analyzed").exists())
+        self.assertEqual(payload["status"], "pending")
+        self.assertEqual(payload["total_objects"], 0)
+        self.assertFalse(DetectionResult.objects.exists())
+        analyze_image.assert_not_called()
 
     @mock.patch("evidence.views.analyze_image")
-    def test_uploader_can_run_detection_on_pending_evidence(self, analyze_image):
+    def test_uploader_reanalysis_creates_pending_request(self, analyze_image):
         analyze_image.return_value = {
             "detections": [
                 {
@@ -182,8 +217,9 @@ class EvidenceUploadTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         evidence.refresh_from_db()
-        self.assertEqual(evidence.status, "analyzed")
-        self.assertEqual(DetectionResult.objects.get(evidence=evidence).weapon_count, 1)
+        self.assertEqual(evidence.status, "pending")
+        self.assertEqual(AnalysisRequest.objects.get(evidence=evidence).status, "pending")
+        analyze_image.assert_not_called()
 
     def test_duplicate_active_analysis_request_rejected(self):
         self.client.login(username="investigator", password="pass12345")
@@ -193,6 +229,48 @@ class EvidenceUploadTests(TestCase):
         second = self.client.post(reverse("submit_analysis_request", args=[evidence.id]))
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 409)
+
+    def test_request_submission_notifies_admin_not_requesting_user(self):
+        admin = User.objects.create_superuser(username="admin_notify", password="pass12345")
+        evidence = Evidence.objects.create(
+            case=self.case,
+            uploaded_by=self.user,
+            file=image_upload(),
+            original_filename="notify.jpg",
+            status="pending",
+        )
+        self.client.login(username="investigator", password="pass12345")
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(reverse("submit_analysis_request", args=[evidence.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Notification.objects.filter(user=admin, title__icontains="User submitted").exists())
+        self.assertFalse(Notification.objects.filter(user=self.user, title__icontains="User submitted").exists())
+
+    def test_admin_approval_notifies_requesting_user_not_admin(self):
+        admin = User.objects.create_superuser(username="admin_approve_notify", password="pass12345")
+        evidence = Evidence.objects.create(
+            case=self.case,
+            uploaded_by=self.user,
+            file=image_upload(),
+            original_filename="approval.jpg",
+            status="pending",
+        )
+        analysis_request = AnalysisRequest.objects.create(
+            evidence=evidence,
+            requested_by=self.user,
+            request_type="detection",
+            status="pending",
+        )
+        self.client.login(username="admin_approve_notify", password="pass12345")
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(reverse("approve_analysis_request", args=[analysis_request.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Notification.objects.filter(user=self.user, title__icontains="approved").exists())
+        self.assertFalse(Notification.objects.filter(user=admin, title__icontains="approved").exists())
 
     @mock.patch("evidence.views.analyze_image")
     def test_approved_request_runs_analysis_and_stores_result(self, analyze_image):
@@ -221,6 +299,121 @@ class EvidenceUploadTests(TestCase):
         self.assertEqual(analysis_request.status, "completed")
         self.assertTrue(DetectionResult.objects.filter(evidence=evidence, analysis_request=analysis_request).exists())
 
+    @mock.patch("evidence.views.analyze_image")
+    def test_user_can_run_detection_after_admin_approval(self, analyze_image):
+        analyze_image.return_value = {
+            "detections": [
+                {
+                    "label": "grenade",
+                    "display_label": "Grenade",
+                    "confidence": 0.88,
+                    "bbox": [2, 2, 40, 40],
+                    "source": "local_yolo",
+                    "model_name": "forensic_weapons_v1",
+                    "model_version": "forensic_best.pt",
+                    "verification_status": "model_detected",
+                    "forensic_significance": "high",
+                    "description": "Grenade detected by trained local model.",
+                    "location": "center",
+                    "color": "#f97316",
+                    "notes": "",
+                }
+            ],
+            "scene_summary": "1 confirmed detection.",
+            "confirmed_count": 1,
+            "candidate_count": 0,
+            "class_counts": {"grenade": 1},
+            "sources_used": ["local_yolo"],
+            "source_models": [{"model_name": "forensic_weapons_v1", "model_version": "forensic_best.pt"}],
+        }
+        admin = User.objects.create_superuser(username="admin2", password="pass12345")
+        evidence = Evidence.objects.create(
+            case=self.case,
+            uploaded_by=self.user,
+            file=image_upload(),
+            original_filename="approved.jpg",
+            status="pending",
+        )
+        analysis_request = AnalysisRequest.objects.create(
+            evidence=evidence,
+            requested_by=self.user,
+            request_type="detection",
+            status="approved",
+            reviewed_by=admin,
+        )
+
+        self.client.login(username="investigator", password="pass12345")
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(reverse("reanalyze_evidence", args=[evidence.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "ok")
+        analysis_request.refresh_from_db()
+        evidence.refresh_from_db()
+        self.assertEqual(analysis_request.status, "completed")
+        self.assertEqual(evidence.status, "analyzed")
+        self.assertEqual(DetectionResult.objects.get(evidence=evidence).grenade_count, 1)
+        self.assertTrue(Notification.objects.filter(user=admin, title="User completed detection").exists())
+
+    @mock.patch("evidence.views.analyze_image")
+    def test_closed_case_blocks_running_approved_detection(self, analyze_image):
+        self.case.status = "closed"
+        self.case.save(update_fields=["status"])
+        evidence = Evidence.objects.create(
+            case=self.case,
+            uploaded_by=self.user,
+            file=image_upload(),
+            original_filename="closed.jpg",
+            status="pending",
+        )
+        AnalysisRequest.objects.create(
+            evidence=evidence,
+            requested_by=self.user,
+            request_type="detection",
+            status="approved",
+        )
+        self.client.login(username="investigator", password="pass12345")
+
+        response = self.client.post(reverse("reanalyze_evidence", args=[evidence.id]))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("case is closed", response.json()["error"].lower())
+        analyze_image.assert_not_called()
+
+    def test_closed_case_blocks_new_analysis_request(self):
+        self.case.status = "closed"
+        self.case.save(update_fields=["status"])
+        evidence = Evidence.objects.create(
+            case=self.case,
+            uploaded_by=self.user,
+            file=image_upload(),
+            original_filename="closed-new.jpg",
+            status="pending",
+        )
+        self.client.login(username="investigator", password="pass12345")
+
+        response = self.client.post(reverse("submit_analysis_request", args=[evidence.id]))
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("case is closed", response.json()["error"].lower())
+
+    def test_closed_case_blocks_evidence_delete(self):
+        self.case.status = "closed"
+        self.case.save(update_fields=["status"])
+        evidence = Evidence.objects.create(
+            case=self.case,
+            uploaded_by=self.user,
+            file=image_upload(),
+            original_filename="keep.jpg",
+            status="pending",
+        )
+        self.client.login(username="investigator", password="pass12345")
+
+        response = self.client.post(reverse("delete_evidence", args=[evidence.id]))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Evidence.objects.filter(id=evidence.id).exists())
+
 
 class DetectionRegistryTests(TestCase):
     def test_fingerprint_support_requires_matching_configured_weights(self):
@@ -236,7 +429,8 @@ class DetectionRegistryTests(TestCase):
         self.assertEqual(normalize_label("handgun"), "gun")
         self.assertEqual(normalize_label("rifle"), "gun")
         self.assertIsNone(normalize_label("shell casing"))
-        self.assertIsNone(normalize_label("grenade"))
+        self.assertEqual(normalize_label("grenade"), "grenade")
+        self.assertEqual(normalize_label("shoeprint"), "footprint")
         self.assertEqual(display_label("blood_stain"), "Blood Stain")
         self.assertEqual(display_label("fingerprint"), "Fingerprint")
 

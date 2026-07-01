@@ -12,13 +12,15 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from .forms import UserRegistrationForm, UserProfileEditForm
-from .models import UserProfile, AuditLog, log_action
+from .models import UserProfile, AuditLog, Notification, log_action
+from .permissions import is_system_admin
+from .services import broadcast_notification, mark_all_notifications_read, mark_notification_read, notify_admins, notify_user
 
 
 # ─── Helpers ──────────────────────────────────────────────────
 
 def _is_admin(user):
-    return user.is_authenticated and user.is_staff
+    return is_system_admin(user)
 
 
 def _approved_required(view_func):
@@ -46,6 +48,14 @@ def register_view(request):
         if form.is_valid():
             user = form.save()
             log_action(user, 'register', target=user.username, request=request)
+            notify_admins(
+                f"{user.username} is waiting for account approval.",
+                "user",
+                user.profile,
+                title="New registration pending",
+                priority="high",
+                action_url="/accounts/admin-panel/users/",
+            )
             return render(request, 'accounts/register_success.html', {'username': user.username})
     else:
         form = UserRegistrationForm()
@@ -125,7 +135,15 @@ def logout_view(request):
 @login_required
 @_approved_required
 def home(request):
-    return render(request, 'index.html')
+    assignable_users = []
+    if is_system_admin(request.user):
+        assignable_users = User.objects.filter(
+            is_active=True,
+            is_staff=False,
+            is_superuser=False,
+            profile__is_approved=True,
+        ).select_related('profile').order_by('username')
+    return render(request, 'index.html', {'assignable_users': assignable_users})
 
 
 # ─── Admin: user management ───────────────────────────────────
@@ -182,6 +200,7 @@ def admin_approve_user(request, user_id):
     profile.approved_by = request.user
     profile.approved_at = timezone.now()
     profile.save()
+    notify_user(target_user, "Your ForensicAI account has been approved.", "user", profile, title="Account approved")
     log_action(request.user, 'approved',
                target=target_user.username, request=request)
     return redirect(request.POST.get('next', 'admin_users'))
@@ -196,6 +215,7 @@ def admin_revoke_user(request, user_id):
     profile, _ = UserProfile.objects.get_or_create(user=target_user)
     profile.is_approved = False
     profile.save()
+    notify_user(target_user, "Your ForensicAI account approval has been revoked.", "user", profile, title="Account revoked", priority="high")
     log_action(request.user, 'role_changed',
                target=target_user.username, details='approval revoked', request=request)
     return redirect('admin_users')
@@ -231,3 +251,82 @@ def api_admin_user_stats(request):
     pending  = UserProfile.objects.filter(user__is_superuser=False, is_approved=False).count()
     approved = total - pending
     return JsonResponse({'total': total, 'pending': pending, 'approved': approved})
+
+
+@login_required
+def notifications_page(request):
+    notifications = Notification.objects.filter(user=request.user).order_by('-created_at')[:100]
+    return render(request, 'accounts/notifications.html', {'notifications': notifications})
+
+
+@login_required
+def api_unread_count(request):
+    latest = Notification.objects.filter(user=request.user).order_by('-created_at')[:5]
+    return JsonResponse({
+        'unread_count': Notification.objects.filter(user=request.user, is_read=False).count(),
+        'latest': [
+            {
+                'id': n.id,
+                'title': n.title,
+                'message': n.message,
+                'type': n.notification_type,
+                'priority': n.priority,
+                'is_read': n.is_read,
+                'action_url': n.action_url,
+                'created_at': n.created_at.isoformat(),
+            }
+            for n in latest
+        ],
+    })
+
+
+@login_required
+@require_http_methods(['POST'])
+def notification_read(request, notification_id):
+    notification = get_object_or_404(Notification, id=notification_id, user=request.user)
+    mark_notification_read(notification)
+    return JsonResponse({'ok': True})
+
+
+@login_required
+@require_http_methods(['POST'])
+def notifications_read_all(request):
+    updated = mark_all_notifications_read(request.user)
+    return JsonResponse({'ok': True, 'updated': updated})
+
+
+@login_required
+@require_http_methods(['POST'])
+def notification_delete(request, notification_id):
+    notification = get_object_or_404(Notification, id=notification_id, user=request.user)
+    notification.delete()
+    return JsonResponse({'ok': True})
+
+
+@login_required
+@user_passes_test(_is_admin)
+def admin_send_notification(request):
+    approved_users = User.objects.filter(profile__is_approved=True, is_staff=False, is_active=True).select_related('profile')
+    if request.method == 'POST':
+        title = request.POST.get('title', '').strip()
+        message = request.POST.get('message', '').strip()
+        audience = request.POST.get('audience', 'one')
+        priority = request.POST.get('priority', 'normal')
+        selected_user_id = request.POST.get('user_id')
+        if not message:
+            return render(request, 'accounts/admin_send_notification.html', {
+                'users': approved_users,
+                'error': 'Message is required.',
+            })
+        if audience == 'investigators':
+            recipients = approved_users.filter(profile__role='investigator')
+        elif audience == 'analysts':
+            recipients = approved_users.filter(profile__role='analyst')
+        elif audience == 'approved':
+            recipients = approved_users
+        else:
+            recipients = approved_users.filter(id=selected_user_id)
+        created = broadcast_notification(recipients, message, 'system', title=title, priority=priority)
+        log_action(request.user, 'create', target='Notification broadcast', details=f'recipients={len(created)}', request=request)
+        return redirect('notifications_page')
+    return render(request, 'accounts/admin_send_notification.html', {'users': approved_users})

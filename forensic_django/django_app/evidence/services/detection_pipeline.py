@@ -10,12 +10,15 @@ logger = logging.getLogger(__name__)
 
 WEIGHTS_DIR = Path(__file__).resolve().parents[1] / "weights"
 
-NORMALIZED_LABELS = {
-    "blood_stain",
-    "fingerprint",
+FORENSIC_CLASSES = {
     "gun",
     "knife",
+    "grenade",
+    "blood_stain",
+    "fingerprint",
+    "footprint",
 }
+NORMALIZED_LABELS = set(FORENSIC_CLASSES)
 
 LABEL_ALIASES = {
     "blood": "blood_stain",
@@ -33,22 +36,35 @@ LABEL_ALIASES = {
     "handgun": "gun",
     "rifle": "gun",
     "knife": "knife",
+    "blade": "knife",
+    "dagger": "knife",
+    "grenade": "grenade",
+    "hand grenade": "grenade",
+    "finger print": "fingerprint",
     "possible blood-like region": "blood_stain",
     "possible blood like region": "blood_stain",
     "possible_blood_like_region": "blood_stain",
     "possible fingerprint-like ridge region": "fingerprint",
     "possible fingerprint like ridge region": "fingerprint",
     "possible_fingerprint_like_ridge_region": "fingerprint",
+    "footprint": "footprint",
+    "foot print": "footprint",
+    "shoe print": "footprint",
+    "shoeprint": "footprint",
+    "footwear impression": "footprint",
 }
 
 DISPLAY_LABELS = {
     "blood_stain": "Blood Stain",
     "fingerprint": "Fingerprint",
+    "footprint": "Footprint",
+    "grenade": "Grenade",
     "gun": "Gun",
     "knife": "Knife",
 }
 
-WEAPON_LABELS = {"gun", "knife"}
+WEAPON_LABELS = {"gun", "knife", "grenade"}
+TRACE_LABELS = {"blood_stain", "fingerprint", "footprint"}
 CANDIDATE_LABELS = set()
 MODEL_DETECTED_LABELS = (NORMALIZED_LABELS - CANDIDATE_LABELS)
 ALLOWED_OUTPUT_LABELS = MODEL_DETECTED_LABELS | CANDIDATE_LABELS
@@ -56,6 +72,8 @@ ALLOWED_OUTPUT_LABELS = MODEL_DETECTED_LABELS | CANDIDATE_LABELS
 LABEL_COLORS = {
     "blood_stain": "#dc2626",
     "fingerprint": "#3b82f6",
+    "footprint": "#06b6d4",
+    "grenade": "#f97316",
     "gun": "#ef4444",
     "knife": "#ef4444",
 }
@@ -63,6 +81,8 @@ LABEL_COLORS = {
 DEFAULT_THRESHOLDS = {
     "blood_stain": 0.35,
     "fingerprint": 0.40,
+    "footprint": 0.40,
+    "grenade": 0.35,
     "gun": 0.35,
     "knife": 0.30,
 }
@@ -82,6 +102,16 @@ MODEL_SPECS = {
         "env": "FORENSIC_FINGERPRINT_WEIGHTS",
         "default": "",
         "intended_classes": {"fingerprint"},
+    },
+    "forensic_trace_v1": {
+        "env": "FORENSIC_TRACE_WEIGHTS",
+        "default": "",
+        "intended_classes": TRACE_LABELS,
+    },
+    "forensic_footprint_v1": {
+        "env": "FORENSIC_FOOTPRINT_WEIGHTS",
+        "default": "",
+        "intended_classes": {"footprint"},
     },
     "forensic_combined_v1": {
         "env": "FORENSIC_COMBINED_WEIGHTS",
@@ -146,6 +176,8 @@ def significance_for(label, verification_status="model_detected"):
     if label in WEAPON_LABELS or label == "blood_stain":
         return "high"
     if label == "fingerprint":
+        return "medium"
+    if label == "footprint":
         return "medium"
     return "low"
 
@@ -569,6 +601,9 @@ def analyze_image(image_path):
         "weapon_count": count_label(detections, WEAPON_LABELS),
         "blood_count": count_label(detections, {"blood_stain"}),
         "fingerprint_count": count_label(detections, {"fingerprint"}),
+        "footprint_count": count_label(detections, {"footprint"}),
+        "grenade_count": count_label(detections, {"grenade"}),
+        "class_counts": {label: count_label(detections, {label}) for label in sorted(FORENSIC_CLASSES)},
     }
     sources_used = []
     if yolo_detections:

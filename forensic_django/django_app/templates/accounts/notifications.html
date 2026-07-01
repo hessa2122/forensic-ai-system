@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notifications - ForensicAI</title>
+  <style>
+    body{margin:0;background:#0d1117;color:#e6edf3;font-family:Arial,sans-serif}
+    main{max-width:980px;margin:0 auto;padding:28px}
+    a{color:#58a6ff}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+    .btn{background:#238636;color:white;border:0;border-radius:6px;padding:10px 14px;cursor:pointer}
+    .item{border:1px solid #30363d;background:#161b22;border-radius:8px;padding:16px;margin-bottom:12px}
+    .item.unread{border-color:#58a6ff;background:#111d2e}
+    .meta{color:#8b949e;font-size:12px;margin-top:8px}
+    .actions{display:flex;gap:10px;margin-top:10px}.danger{background:#da3633}
+  </style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <h1>Notifications</h1>
+    <form method="post" action="{% url 'notifications_read_all' %}">
+      {% csrf_token %}
+      <button class="btn" type="submit">Mark all as read</button>
+    </form>
+  </div>
+  {% for notification in notifications %}
+    <article class="item {% if not notification.is_read %}unread{% endif %}">
+      <h2>{{ notification.title|default:"Notification" }}</h2>
+      <p>{{ notification.message }}</p>
+      <div class="meta">{{ notification.get_notification_type_display }} · {{ notification.get_priority_display }} · {{ notification.created_at }}</div>
+      <div class="actions">
+        {% if notification.action_url %}<a href="{{ notification.action_url }}">Open</a>{% endif %}
+        {% if not notification.is_read %}
+          <form method="post" action="{% url 'notification_read' notification.id %}">{% csrf_token %}<button class="btn" type="submit">Mark read</button></form>
+        {% endif %}
+        <form method="post" action="{% url 'notification_delete' notification.id %}">{% csrf_token %}<button class="btn danger" type="submit">Delete</button></form>
+      </div>
+    </article>
+  {% empty %}
+    <p>No notifications yet.</p>
+  {% endfor %}
+</main>
+</body>
+</html>

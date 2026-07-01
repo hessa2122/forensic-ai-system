@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Send Notification - ForensicAI</title>
+  <style>
+    body{margin:0;background:#0d1117;color:#e6edf3;font-family:Arial,sans-serif}
+    main{max-width:760px;margin:0 auto;padding:28px}
+    label{display:block;margin-top:14px;color:#8b949e}
+    input,textarea,select{width:100%;box-sizing:border-box;margin-top:6px;padding:10px;border-radius:6px;border:1px solid #30363d;background:#161b22;color:#e6edf3}
+    button{margin-top:18px;background:#238636;color:white;border:0;border-radius:6px;padding:10px 14px;cursor:pointer}
+    .error{color:#ff7b72}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Send Notification</h1>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <label>Title<input name="title" maxlength="160"></label>
+    <label>Message<textarea name="message" required rows="5"></textarea></label>
+    <label>Audience
+      <select name="audience">
+        <option value="one">Selected user</option>
+        <option value="investigators">All approved investigators</option>
+        <option value="analysts">All approved analysts</option>
+        <option value="approved">All approved non-admin users</option>
+      </select>
+    </label>
+    <label>User
+      <select name="user_id">
+        {% for user in users %}<option value="{{ user.id }}">{{ user.username }} ({{ user.profile.display_role }})</option>{% endfor %}
+      </select>
+    </label>
+    <label>Priority
+      <select name="priority">
+        <option value="normal">Normal</option>
+        <option value="high">High</option>
+        <option value="low">Low</option>
+      </select>
+    </label>
+    <button type="submit">Send</button>
+  </form>
+</main>
+</body>
+</html>

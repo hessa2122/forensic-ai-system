@@ -46,6 +46,12 @@ urlpatterns = [
         views.admin_audit_log,
         name="admin_audit_log",
     ),
+    path("notifications/", views.notifications_page, name="notifications_page"),
+    path("api/notifications/unread-count/", views.api_unread_count, name="api_unread_count"),
+    path("notifications/<int:notification_id>/read/", views.notification_read, name="notification_read"),
+    path("notifications/read-all/", views.notifications_read_all, name="notifications_read_all"),
+    path("notifications/<int:notification_id>/delete/", views.notification_delete, name="notification_delete"),
+    path("admin-panel/notifications/send/", views.admin_send_notification, name="admin_send_notification"),
 
     # API
     path(
